@@ -318,7 +318,7 @@ if __name__ == '__main__':
     K.set_image_data_format('channels_last')
     holdBTC = False  # TODO : be sure about the purpose of this variable...
     holdUSDT = True
-    startRange = datetime.datetime(2022,6,20,0,0,0)
+    startRange = datetime.datetime(2022,6,19,0,0,0)
     endRange = datetime.datetime(2022,6,21,0,0,0)
     
     # TODO(investigate) : what about BTC markets as currency?
@@ -337,7 +337,7 @@ if __name__ == '__main__':
     minibatchCount = 30
     minibatchSize = 50
     epochs = 50
-    window = 50
+    window = 50  # TODO : when using a bigger window, i need to adapt the kernel size or add a new conv layer with a bigger kernel size s.t. shapes are correct again
     
     data = []  # final shape: timesteps x features x markets, features = (close, high, low, ...)
     priceRelativeVectors = []
