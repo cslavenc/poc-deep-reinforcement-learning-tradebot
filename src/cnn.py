@@ -4,6 +4,8 @@ Created on Thu Jul  7 03:49:14 2022
 
 @author: slaven
 """
+import warnings
+warnings.filterwarnings("ignore")
 
 import datetime
 import random
@@ -119,19 +121,19 @@ class Portfolio:
     
     # Re-initialize portfolio state
     def reset(self):
-        self.weights = [1.] + [0. for i in self.symbols[1:]]
+        self.weights = [1.] + [0. for i in self.symbols[1:]]  # TODO : is this correct? cash bias 1, rest 0, so all is in cash? I think for these weights it might be OK
         self.value = 1.0
 
     # Instantiate portfolio vector memory with initial values
     def initPvm(self, rates):
-        self.pvm = [[1.] + [0. for i in self.symbols[1:]] for j in (rates + rates[:1])]
+        self.pvm = [[1.] + [0. for i in self.symbols[1:]] for j in (rates + rates[:1])]  # TODO : is this correct?
 
     # Determine change in weights and portfolio value due to price movement between trading periods
     def updateRateShift(self, prevRates, curRates): 
-        xHat = np.divide([1.] + curRates, [1.] + prevRates)
+        xHat = np.divide([1.] + curRates, [1.] + prevRates)  # TODO : clearly understand where the [1.] comes from and if its even necessary (probably yes)
         values = [self.getValue() * w * x for w, x in zip(self.getWeights(), xHat)]
 
-        prevValue = self.getValue()
+        prevValue = self.getValue()  # TODO : why is this unused
         self.setValue(sum(values))
 
         b = np.divide(values, self.getValue())
@@ -148,30 +150,37 @@ class Portfolio:
 
     # Ascend reward gradient of minibatch starting at idx
     def trainOnMinibatch(self, idx, inTensor, rates):
-        pvmSeg = self.pvm[idx:(idx + self.minibatchSize)]  # TODO : might lack paranthesis
+        # TODO : why is index negative, positive would be nicer? causes problems at pvmSeg
+        print('ENTER MINIBATCH ({})'.format(idx))
+        # only require the relevant subset based on the minibatchSize of the full PVMs at each timestep (idx)
+        pvmSeg = self.pvm[idx:(idx+self.minibatchSize)]  # TODO(THIS) : something is a miss when truncating...
+        # TODO : something is going wrong when adding the cash bias array, i think it is on its own row....
+        print('IN minibatch: segm. pvm: {}'.format(pvmSeg))
 
-        truncPvmSeg = [q[1:] for q in pvmSeg]  # TODO : old: [q[1:] for q in pvmSeg]
+        truncPvmSeg = [q[1:] for q in pvmSeg]  # TODO : q[1:] is supposed to remove the cash weight in the PVM, this should be OK
         print('truncated pvm segment: {}'.format(truncPvmSeg))
         
-        mIn = np.array(inTensor[idx:(idx + self.minibatchSize)])
-        wIn = np.array(truncPvmSeg)
-        bIn = np.array([[1.0]] * self.minibatchSize)
+        mIn = np.array(inTensor[idx:(idx+self.minibatchSize)])
+        wIn = np.array(truncPvmSeg)  # TODO : its a long array containing lists with weights excl. the cash weight
+        bIn = np.array([[1.0]] * self.minibatchSize)  # TODO : cash bias? why [1.0]? array containing a list with only 1 element
         print('minibatch: main input: {}'.format(mIn.shape))  # seems to have proper shape
         print('weight input as truncPvmSeg: {}'.format(wIn))
         
         # TODO : are the inputs MALFORMED now?
-        out = self.model.predict([mIn, wIn, bIn], batch_size=self.minibatchSize) 
+        out = self.model.predict([mIn, wIn, bIn], batch_size=self.minibatchSize)
         squeezeOut = np.squeeze(out)
 
-        pP = [[1.] + list(r) for r in rates[(idx-1):(idx+self.minibatchSize-1)]]
-        pC = [[1.] + list(r) for r in rates[(idx):(idx+self.minibatchSize)]] 
-        pN = [[1.] + list(r) for r in rates[(idx+1):(idx+self.minibatchSize+1)]] 
+        # TODO : what vars are these exactly?
+        pP = [[1.] + list(r) for r in rates[(idx-1):(idx+self.minibatchSize-1)]]  # prev t-1
+        pC = [[1.] + list(r) for r in rates[(idx):(idx+self.minibatchSize)]]      # curr t
+        pN = [[1.] + list(r) for r in rates[(idx+1):(idx+self.minibatchSize+1)]]  # next t+1
 
         # Previous and current market relative price matrices
         yP = np.divide(pC, pP)
         yC = np.divide(pN, pC)    
         
-        wPrev = np.array(self.pvm[idx:idx + self.minibatchSize])
+        # long matrix with weights up to the current time period
+        wPrev = np.array(self.pvm[idx:(idx+self.minibatchSize)])
         
         wpNum = np.multiply(yP, wPrev)
         wpDen = np.array([np.dot(ypT, wpT) for (ypT, wpT) in zip(yP, wPrev)])
@@ -190,20 +199,20 @@ class Portfolio:
 
     # RL agent training function
     def train(self, inTensor, rates):
-        # print('data: {}'.format(inTensor))
         self.initPvm(rates)
         # For each epoch
         for epoch in range(self.epochs):
             print('\nBeginning epoch ' + str(epoch))
             self.reset()
             # For each trading period in the interval
-            for i, (r, p, x) in enumerate(zip(rates[1:], self.pvm[1:-1], inTensor[1:])):
+            for i, (r, p, x) in enumerate(zip(rates[1:], self.pvm[1:-1], inTensor[1:])):  # TODO : why is the last pvm ignored? what about the inTensor?
                 # Determine eiie output at the current period
+                print('CURRENT ITERATION: {}'.format(i))
                 mIn = np.array([x])
                 wIn = np.array([np.squeeze(p)])  # TODO : np.squeeze necessary?
                 bIn = np.array([1.])
-                # print(p)  # size only 1, but should be 4...
-                # print(wIn)
+                print('pvm in train func: {}'.format(p))  # size only 1, but should be 4...
+                print('wIn in train func: {}'.format(wIn))
                 modelOutput = self.model.predict([mIn, wIn, bIn])[0]
                 print('model output: {}'.format(modelOutput))
 
@@ -214,18 +223,22 @@ class Portfolio:
                 newB, prevB, curValue = self.updateRateShift(rates[i], r)
                 # print(newB)
                 # print(curValue)
+                break
                 self.updatePortfolio(modelOutput[0][0], newB, curValue, rates[i], r) 
                 if i % 1000 == 0:
                     print('\ti (' + str(i) + ') value: ' + str(self.getValue()))
                  
                 # Train EIIE over minibatches of historical data
-                # if i - self.minibatchSize >= 0:
-                if i < self.minibatchSize:
+                # "i" should be bigger than the minibatchSize for the lookback to work properly
+                if i - self.minibatchSize >= 0:
+                # if i < self.minibatchSize:
                     for j in range(self.minibatchCount):
                         # Sample minibatch interval from geometric distribution
                         idx = self.getMinibatchInterval(i)
                         self.trainOnMinibatch(idx, inTensor, rates)
             print('Epoch ' + str(epoch) + ' value: ' + str(self.getValue()))
+            
+            if epoch == 1: break
     
     # Calculate current portfolio value and set portfolio weights
     def updatePortfolio(self, newWeights, prevWeights, prevValue, prevRates, curRates):
