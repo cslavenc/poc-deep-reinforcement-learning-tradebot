@@ -53,7 +53,7 @@ class Portfolio:
     Note: np.log is the NATURAL logarithm, often denoted as ln()
     """
     def calculateLnRateOfReturn(self, currentPriceRelativeVector, prevPortfolioWeights):
-        return np.log(self.calculateRateOfReturn(prevPortfolioValue, currentPriceRelativeVector, prevPortfolioWeights))
+        return np.log(self.calculateRateOfReturn(currentPriceRelativeVector, prevPortfolioWeights))
     
     
     """

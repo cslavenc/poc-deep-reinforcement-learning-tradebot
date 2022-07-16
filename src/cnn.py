@@ -472,9 +472,7 @@ if __name__ == '__main__':
     endRange = datetime.datetime(2022,6,21,0,0,0)
     
     # markets = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'MATICUSDT', 'DOTUSDT', 'LINKUSDT',
-    #            'BNBUSDT', 'SOLDUSDT', 'AVAXUSDT', 'ATOMUSDT', 'XRPUSDT',
-    #            # less established ones
-    #            'GMTUSDT', 'PAXGUSDT']
+    #            'BNBUSDT', 'SOLDUSDT', 'AVAXUSDT', 'ATOMUSDT', 'XRPUSDT']
     markets = ['BTCUSDT_15m', 'ETHUSDT_15m', 'ADAUSDT_15m', 'BNBUSDT_15m']
     # market = 'BTCUSDT_15m'
     
