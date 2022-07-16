@@ -439,6 +439,25 @@ class Portfolio:
     def setWeights(self, weights):
         self.weights = weights[:]
 
+
+"""
+EQUATION 21, apparently, this is one of the loss functions that the original authors use in their (updated) repo
+https://github.com/ZhengyaoJiang/PGPortfolio
+
+:param y_true - futurePriceRelativeVector, y_t+1 of current period t (y_t+1 = v_t+1/v_t)
+:param y_pred - weightsOutput, weights output of the network w_t
+
+return: loss, something similar like a cross entropy loss
+
+NOTE: w_t is NOT w_t-1 from EQUATION 2
+NOTE: y_true and y_pred are used as names since its a requirement by keras to define a custom loss function
+      Technically, this is incorrect, since y_true has the futureRelativePriceVectors
+      while y_pred are the predicted portfolio weights 
+"""
+def custom_loss_fn(y_true, y_pred):
+    return -tf.math.log(tf.math.reduce_sum(tf.multiply(y_true, y_pred), axis=0))
+
+
 if __name__ == '__main__':
     # tf.compat.v1.enable_eager_execution()
     # The Conv2D op currently only supports the NHWC tensor format on the CPU. The op was given the format: NCHW
