@@ -245,7 +245,8 @@ class Portfolio:
         squeezeOut = np.squeeze(out)
         print('squeezeOut: {}'.format(squeezeOut.shape))
 
-        # TODO : what vars are these exactly?
+        # the close prices
+        # pP is closePrice at t-1, pC is closePrice at t, pN is closePrice at t+1 (pN=pNext)
         pP = [[1.] + list(r) for r in rates[(idx-1):(idx+self.minibatchSize-1)]]  # prev t-1
         pC = [[1.] + list(r) for r in rates[(idx):(idx+self.minibatchSize)]]      # curr t
         pN = [[1.] + list(r) for r in rates[(idx+1):(idx+self.minibatchSize+1)]]  # next t+1

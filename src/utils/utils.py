@@ -50,14 +50,15 @@ def formatData(data, addCurrency=False):
 # TODO : understand variables properly, add a reference where they appear in the original paper
 def formatDataForInput(data, window):
     data = formatData(data)
-    x = []  # final formatted tensor X
+    X_tensor = []             # final formatted tensor X
     priceRelativeVector = []  # price relative vector
     rates = []  # TODO : what is this?
     for i in range(window, len(data)):
         stepData = []
         for j in range(len(data.iloc[i])):
             stepData.append([np.divide(data.iloc[k][j], data.iloc[i-1]['close']) for k in range(i-window, i)])
-        x.append(stepData)
+        X_tensor.append(stepData)
+        # EQUATION 1: y_t = elementWiseDivision(v_t, v_t-1)  # without 1 at the beginning
         priceRelativeVector.append(np.divide(data.iloc[i-1]['close'], data.iloc[i-2]['close']))
         rates.append(data.iloc[i]['close'])
-    return x, priceRelativeVector, rates
+    return X_tensor, priceRelativeVector, rates
