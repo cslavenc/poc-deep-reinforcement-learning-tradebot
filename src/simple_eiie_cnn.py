@@ -7,13 +7,14 @@ Created on Fri Jul 15 10:16:12 2022
 
 import datetime
 import numpy as np
+import matplotlib.pyplot as plt
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Conv2D, Input, Dropout, BatchNormalization, Flatten, Softmax
+from tensorflow.keras.layers import Conv2D, Input, Flatten
 
-from utils.utils import getData, formatDataForInput
+from utils.utils import getRawData, formatRawDataForInput
 
 
 class Portfolio:
@@ -74,35 +75,35 @@ class Portfolio:
         main = Conv2D(filters=2, kernel_size=(1, 3), activation='relu', name='first_conv_layer')(mainInputLayer)
         main = Conv2D(filters=20, kernel_size=(1, 48), activation='relu', name='second_conv_layer')(main)
         main = Conv2D(filters=1, kernel_size=(1, 1), name='final_conv_layer')(main)
-        # NOTE: no need to apply softmax. Use logits, they are more numerically stable in the CategoricalCrossentropy loss function
-        # That same function applies a softmax too even if from_logits=False, because the output is not understood properly
-        outputLogits = Flatten()(main)  # bring it to the right shape before applying softmax
+        # NOTE: no need to apply softmax. Use logits, they are more numerically more stable in the CategoricalCrossentropy loss function
+        # CategoricalCrossentropy applies a softmax too even if from_logits=False is set, because the output is not understood properly
+        outputLogits = Flatten()(main)  # bring it into the right shape
         
         simpleEiieCnnModel = Model(inputs=mainInputLayer, outputs=outputLogits, name='simple_eiie_cnn')
         
         self.model = simpleEiieCnnModel
 
 
-"""
-Generate the optimal weights, which is allocating everything into the asset that grew the most.
-Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
-
-:param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
-
-return: optimized weights, where 1 for the asset with the highest increase and else 0
-
-NOTE: if cash is added, it will only get weight 1., if all other assets were decreasing (growth < 1)
-"""
-def generateOptimalWeights(priceRelativeVectors):
-    optimalWeights = []
-    optimalAssetIds = np.argmax(priceRelativeVectors, axis=1)
+    """
+    Generate the optimal weights, which is allocating everything into the asset that grew the most.
+    Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
     
-    for i in range(np.shape(priceRelativeVectors)[0]):
-        tempWeights = [0. for _ in range(np.shape(priceRelativeVectors)[1])]
-        tempWeights[optimalAssetIds[i]] = 1.
-        optimalWeights.append(tempWeights)
+    :param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
     
-    return np.asarray(optimalWeights)
+    return: optimized weights, where 1 for the asset with the highest increase and else 0
+    
+    NOTE: if cash is added, it will only get weight 1., if all other assets were decreasing (growth < 1)
+    """
+    def generateOptimalWeights(self, priceRelativeVectors):
+        optimalWeights = []
+        optimalAssetIds = np.argmax(priceRelativeVectors, axis=1)
+        
+        for i in range(np.shape(priceRelativeVectors)[0]):
+            tempWeights = [0. for _ in range(np.shape(priceRelativeVectors)[1])]
+            tempWeights[optimalAssetIds[i]] = 1.
+            optimalWeights.append(tempWeights)
+        
+        return np.asarray(optimalWeights)
 
 
 """
@@ -126,7 +127,7 @@ In any case, it tends to trend like the general market (in both directions).
 """
 if __name__ == '__main__':
     # define a few neural network specific variables
-    epochs = 2000
+    epochs = 1200
     window = 50
     learning_rate = 0.00019
     
@@ -134,28 +135,25 @@ if __name__ == '__main__':
     K.set_image_data_format('channels_last')
     
     # prepare data
-    startRange = datetime.datetime(2022,6,1,0,0,0)
+    startRange = datetime.datetime(2022,6,20,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
-    markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT']
+    markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
     # final shape CPU mode: timesteps x markets x lookback x features, features = channels = (close, high, low, ...)
     data = []
     # EQUATION 1: y_t = (v_0,t/v_0,t-1 | v_BTC,t/v_BTC,t-1 | ... | v_ADA,t/v_ADA,t-1), with v_0 = 1 for all t (v_0 is the cash)
     priceRelativeVectors = []
-    # rates are the closePrices of all the assets used to calculate the relativePriceVector for various t
-    rates = []
+
     for market in markets:
-        rawData = getData(startRange, endRange, market)
-        formattedData, priceRelativeVector, ratesMarket = formatDataForInput(rawData, window)
+        rawData = getRawData(startRange, endRange, market)
+        formattedData, priceRelativeVector, _ = formatRawDataForInput(rawData, window)
         data.append(formattedData)
         priceRelativeVectors.append(priceRelativeVector)
-        rates.append(ratesMarket)
     
     # get them into the right shape
-    data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (page 9, EQUATION 18)
-    priceRelativeVectors = np.transpose(priceRelativeVectors).tolist()
-    rates = np.transpose(rates).tolist()
-    
+    data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
+    priceRelativeVectors = np.transpose(priceRelativeVectors)
+        
     # start portfolio simulation
     portfolio = Portfolio()
     portfolio.createSimpleEIIECNN(data)
@@ -164,9 +162,41 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     portfolio.model.compile(optimizer=optimizer,
                             loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-                            metric='accuracy')
+                            metrics='accuracy')
     
     # simulate y_true
-    optimalWeights = generateOptimalWeights(priceRelativeVectors)
+    optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.fit(x=data, y=optimalWeights, epochs=epochs)
-    # predictions = portfolio.model.predict()
+    
+    # get test data
+    startRangeTest = datetime.datetime(2022,6,23,0,0,0)
+    endRangeTest = datetime.datetime(2022,6,25,0,0,0)
+    testData = []
+    testPriceRelativeVector = []
+    
+    ## TODO : refactor this into its own function
+    for market in markets:
+        rawData = getRawData(startRangeTest, endRangeTest, market)
+        formattedData, priceRelativeVector, _ = formatRawDataForInput(rawData, window)
+        testData.append(formattedData)
+        testPriceRelativeVector.append(priceRelativeVector)
+    
+    # get them into the right shape
+    testData = np.swapaxes(np.swapaxes(testData, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
+    testPriceRelativeVector = np.transpose(testPriceRelativeVector)
+    
+    # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
+    logits = portfolio.model.predict(testData)
+    
+    # Calculate and visualize how the portfolio value changes over time
+    portfolioValue = [10000]
+    portfolioWeights = tf.nn.softmax(logits)
+    for i in range(1,len(testPriceRelativeVector)):
+        portfolioValue.append(
+            portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVector[i]), np.asarray(portfolioWeights[i-1])))
+    
+    plt.figure()
+    plt.title('Change in portfolio value over time ({} to {})'.format(startRangeTest.strftime('%Y-%m-%d'), endRangeTest.strftime('%Y-%m-%d')))
+    plt.plot(portfolioValue)
+    plt.xlabel('time t in steps of {}'.format('15m'))
+    plt.ylabel('in USD')

@@ -7,13 +7,14 @@ Created on Tue Apr 19 20:22:33 2022
 
 from save_data_from_binance import saveData
 
-# generate datasets for every trading pair based on provided currency
+# generate datasets for every trading pair based on provided currency from binance
 if __name__ == '__main__':
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'MATICUSDT', 'DOTUSDT',
-               'LINKUSDT', 'BNBUSDT', 'SOLDUSDT', 'AVAXUSDT', 'ATOMUSDT', 'XRPUSDT']
+               'LINKUSDT', 'BNBUSDT', 'SOLDUSDT', 'AVAXUSDT', 'AAVEUSDT',
+               'ATOMUSDT', 'XRPUSDT']
     timeframes = ['15m']  # also supported: '1w', '3d', '1d', '4h', '1h' etc.
     limit='1000'
     
-    for market in markets:
+    for market in ['SOLUSDT']:
         for timeframe in timeframes:
             saveData(market, timeframe, limit)

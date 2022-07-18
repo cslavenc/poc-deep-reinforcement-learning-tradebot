@@ -9,6 +9,7 @@ import os
 import numpy as np
 import pandas as pd
 
+
 # helper function to get file names in a target directory
 def getFilenamesInDirectory(contains, targetDirectory):
     # get list with all datasets in directory
@@ -24,7 +25,9 @@ def getFilenamesInDirectory(contains, targetDirectory):
             filenames.append(entry.name)
     return filenames
 
-def getData(startRange, endRange, market):
+
+# get raw data from binance
+def getRawData(startRange, endRange, market):
     targetDirectory = 'datasets'
     filenames = getFilenamesInDirectory(market, targetDirectory)
     filename = [fname for fname in filenames if market in fname][0]
@@ -38,27 +41,31 @@ def getData(startRange, endRange, market):
     return data          
 
 
-# TODO(!) : i think transpose is not necessary here actually
-# TODO : does it matter if close, high, low first or should close be at the end?
-# TODO : handle the case where addBTC or addUSDT is true
-def formatData(data, addCurrency=False):
-    # transpose to get timestamps as rows, features as cols
+# extract the features of interest
+def extractFeaturesFromRawData(data):
     data = pd.DataFrame(data=[data['close'], data['high'], data['low']]).T
     return data
 
 
-# TODO : understand variables properly, add a reference where they appear in the original paper
-def formatDataForInput(data, window):
-    data = formatData(data)
+# format raw data into the right shape to be used as tensors later on
+def formatRawDataForInput(data, window):
+    data = extractFeaturesFromRawData(data)
     X_tensor = []             # final formatted tensor X
     priceRelativeVector = []  # price relative vector
-    rates = []  # TODO : what is this?
+    rates = []                # close price of each asset: [[close_BTC_0, close_ETH_0, ..., close_ADA_0], ..., [close_BTC_t, ..., close_ADA_t]]
+    
     for i in range(window, len(data)):
         stepData = []
         for j in range(len(data.iloc[i])):
+            # normalize with close price
             stepData.append([np.divide(data.iloc[k][j], data.iloc[i-1]['close']) for k in range(i-window, i)])
         X_tensor.append(stepData)
         # EQUATION 1: y_t = elementWiseDivision(v_t, v_t-1)  # without 1 at the beginning
         priceRelativeVector.append(np.divide(data.iloc[i-1]['close'], data.iloc[i-2]['close']))
         rates.append(data.iloc[i]['close'])
     return X_tensor, priceRelativeVector, rates
+
+
+# wrapper function to return the finalized data to be used in neural networks
+def prepareData():
+    pass
