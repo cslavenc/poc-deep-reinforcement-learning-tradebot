@@ -7,7 +7,6 @@ Created on Fri Jul 15 10:16:12 2022
 
 import datetime
 import numpy as np
-import matplotlib.pyplot as plt
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
