@@ -50,7 +50,7 @@ def extractFeaturesFromRawData(data):
 # format raw data into the right shape to be used as tensors later on
 def formatRawDataForInput(data, window):
     data = extractFeaturesFromRawData(data)
-    X_tensor = []             # final formatted tensor X
+    X_tensor = []             # formatted tensor X
     priceRelativeVector = []  # price relative vector
     rates = []                # close price of each asset: [[close_BTC_0, close_ETH_0, ..., close_ADA_0], ..., [close_BTC_t, ..., close_ADA_t]]
     
@@ -67,5 +67,22 @@ def formatRawDataForInput(data, window):
 
 
 # wrapper function to return the finalized data to be used in neural networks
-def prepareData():
-    pass
+def prepareData(startRange, endRange, markets, window):
+    # final shape CPU mode: timesteps x markets x lookback x features, features = channels = (close, high, low, ...)
+    data = []
+    # EQUATION 1: y_t = (v_0,t/v_0,t-1 | v_BTC,t/v_BTC,t-1 | ... | v_ADA,t/v_ADA,t-1), with v_0 = 1 for all t (v_0 is the cash)
+    priceRelativeVectors = []
+    rates = []  # close prices of each asset
+    
+    for market in markets:
+        rawData = getRawData(startRange, endRange, market)
+        formattedData, priceRelativeVector, marketRates = formatRawDataForInput(rawData, window)
+        data.append(formattedData)
+        priceRelativeVectors.append(priceRelativeVector)
+        rates.append(marketRates)
+    
+    # get them into the right shape
+    data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
+    priceRelativeVectors = np.transpose(priceRelativeVectors)
+    rates = np.transpose(rates)
+    return data, priceRelativeVectors, rates

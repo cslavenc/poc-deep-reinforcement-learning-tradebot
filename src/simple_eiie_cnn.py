@@ -14,7 +14,8 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, Input, Flatten
 
-from utils.utils import getRawData, formatRawDataForInput
+from utils.utils import prepareData
+from utils.plot_utils import plotPortfolioValueChange
 
 
 class Portfolio:
@@ -80,7 +81,6 @@ class Portfolio:
         outputLogits = Flatten()(main)  # bring it into the right shape
         
         simpleEiieCnnModel = Model(inputs=mainInputLayer, outputs=outputLogits, name='simple_eiie_cnn')
-        
         self.model = simpleEiieCnnModel
 
 
@@ -126,39 +126,26 @@ sufficiently take the history into account!
 In any case, it tends to trend like the general market (in both directions).
 """
 if __name__ == '__main__':
+    # enforce CPU mode (for GPU mode, set 'channels_first' and modify tensor shapes accordingly)
+    K.set_image_data_format('channels_last')
+    
     # define a few neural network specific variables
     epochs = 1200
     window = 50
     learning_rate = 0.00019
-    
-    # enforce CPU mode (for GPU mode, set 'channels_first' and modify tensor shapes accordingly)
-    K.set_image_data_format('channels_last')
     
     # prepare data
     startRange = datetime.datetime(2022,6,20,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
-    # final shape CPU mode: timesteps x markets x lookback x features, features = channels = (close, high, low, ...)
-    data = []
-    # EQUATION 1: y_t = (v_0,t/v_0,t-1 | v_BTC,t/v_BTC,t-1 | ... | v_ADA,t/v_ADA,t-1), with v_0 = 1 for all t (v_0 is the cash)
-    priceRelativeVectors = []
-
-    for market in markets:
-        rawData = getRawData(startRange, endRange, market)
-        formattedData, priceRelativeVector, _ = formatRawDataForInput(rawData, window)
-        data.append(formattedData)
-        priceRelativeVectors.append(priceRelativeVector)
-    
-    # get them into the right shape
-    data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
-    priceRelativeVectors = np.transpose(priceRelativeVectors)
+    data, priceRelativeVectors, _ = prepareData(startRange, endRange, markets, window)
         
     # start portfolio simulation
     portfolio = Portfolio()
     portfolio.createSimpleEIIECNN(data)
     
-    # with the simulated y_true, categorical crossentropy loss makes the most sense
+    # with the simulated y_true (optimalWeights), categorical crossentropy loss makes the most sense
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     portfolio.model.compile(optimizer=optimizer,
                             loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
@@ -168,22 +155,11 @@ if __name__ == '__main__':
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.fit(x=data, y=optimalWeights, epochs=epochs)
     
-    # get test data
+    # generate test data
     startRangeTest = datetime.datetime(2022,6,23,0,0,0)
     endRangeTest = datetime.datetime(2022,6,25,0,0,0)
-    testData = []
-    testPriceRelativeVector = []
     
-    ## TODO : refactor this into its own function
-    for market in markets:
-        rawData = getRawData(startRangeTest, endRangeTest, market)
-        formattedData, priceRelativeVector, _ = formatRawDataForInput(rawData, window)
-        testData.append(formattedData)
-        testPriceRelativeVector.append(priceRelativeVector)
-    
-    # get them into the right shape
-    testData = np.swapaxes(np.swapaxes(testData, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
-    testPriceRelativeVector = np.transpose(testPriceRelativeVector)
+    testData, testPriceRelativeVector, _ = prepareData(startRangeTest, endRangeTest, markets, window)
     
     # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
     logits = portfolio.model.predict(testData)
@@ -195,8 +171,4 @@ if __name__ == '__main__':
         portfolioValue.append(
             portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVector[i]), np.asarray(portfolioWeights[i-1])))
     
-    plt.figure()
-    plt.title('Change in portfolio value over time ({} to {})'.format(startRangeTest.strftime('%Y-%m-%d'), endRangeTest.strftime('%Y-%m-%d')))
-    plt.plot(portfolioValue)
-    plt.xlabel('time t in steps of {}'.format('15m'))
-    plt.ylabel('in USD')
+    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest)
