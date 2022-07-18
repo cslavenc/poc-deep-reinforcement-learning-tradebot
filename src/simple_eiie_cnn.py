@@ -133,7 +133,7 @@ if __name__ == '__main__':
     window = 50
     learning_rate = 0.00019
     
-    # prepare data
+    # prepare train data
     startRange = datetime.datetime(2022,6,20,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.fit(x=data, y=optimalWeights, epochs=epochs)
     
-    # generate test data
+    # prepare test data
     startRangeTest = datetime.datetime(2022,6,23,0,0,0)
     endRangeTest = datetime.datetime(2022,6,25,0,0,0)
     
