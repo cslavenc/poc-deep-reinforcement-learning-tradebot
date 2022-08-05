@@ -33,7 +33,6 @@ class Portfolio:
     """
     EQUATION 3: rho_t = <y_t, w_t-1> - 1
     
-    :param prevPortfolioValue, p_t-1
     :param currentPriceRelativeVector, y_t from the current period t
     :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
     
@@ -45,7 +44,6 @@ class Portfolio:
     """
     EQUATION 4: r_t = ln(<y_t, w_t-1>)
     
-    :param prevPortfolioValue, p_t-1
     :param currentPriceRelativeVector, y_t from the current period t
     :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
     
@@ -66,11 +64,11 @@ class Portfolio:
     
     NOTE: if using GPU mode, shapes and kernel sizes need to be adapted
     NOTE: this is a simple EIIE CNN without adding pvm_t-1 = w_t-1[1:] or the cash bias
+    NOTE: prefer functional API for its flexibility for future model extensions
     """
     def createSimpleEIIECNN(self, X_tensor):
         mainInputShape = np.shape(X_tensor)[1:]
         
-        # prefer functional API for its flexibility for future model extensions
         mainInputLayer = Input(shape=mainInputShape, name='main_input_layer')
         main = Conv2D(filters=2, kernel_size=(1, 3), activation='relu', name='first_conv_layer')(mainInputLayer)
         main = Conv2D(filters=20, kernel_size=(1, 48), activation='relu', name='second_conv_layer')(main)
@@ -134,7 +132,7 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,20,0,0,0)
+    startRange = datetime.datetime(2022,6,17,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
@@ -155,7 +153,7 @@ if __name__ == '__main__':
     portfolio.model.fit(x=data, y=optimalWeights, epochs=epochs)
     
     # prepare test data
-    startRangeTest = datetime.datetime(2022,6,23,0,0,0)
+    startRangeTest = datetime.datetime(2022,6,24,0,0,0)
     endRangeTest = datetime.datetime(2022,6,25,0,0,0)
     
     testData, testPriceRelativeVector, _ = prepareData(startRangeTest, endRangeTest, markets, window)
