@@ -63,23 +63,21 @@ class Portfolio():
     NOTE: The PVM excludes the cash weights. This implementation uses the cash weights anyway
           if it is present in the input data (often simulated as BUSDUSDT)
     """
-    # TODO : maybe refactor to use input shapes directly as params and not X_tensor etc, since i only need the shape
-    def createEiieCnnWithWeights(self, X_tensor):
+    def createEiieCnnWithWeights(self, X_tensor, weights):
         mainInputShape = np.shape(X_tensor)[1:]
-        # weightsInputShape = np.shape(weights)[1:]
+        weightsInputShape = np.shape(weights)[1:]
         
         # prefer functional API for its flexibility for future model extensions
         mainInputLayer = Input(shape=mainInputShape, name='main_input_layer')
         main = Conv2D(filters=2, kernel_size=(1, 3), activation='relu', name='first_conv_layer')(mainInputLayer)
         main = Conv2D(filters=20, kernel_size=(1, 48), activation='relu', name='second_conv_layer')(main)
-        # intermediateOutputs = Conv2D(filters=20, kernel_size=(1, 48), activation='relu', name='intermediate_output_layer')(main)
         
         # create layers for input weights
-        # weightsInputLayer = Input(shape=weightsInputShape, name='weights_input_layer')
-        # weightsExpanded = Lambda(expandDimensions, name='weights_expansion_layer')(weightsInputLayer)
+        weightsInputLayer = Input(shape=weightsInputShape, name='weights_input_layer')
+        weightsExpanded = Lambda(expandDimensions, name='weights_expansion_layer')(weightsInputLayer)
         
-        # # Concatenate the weightsLayer to the mainLayer
-        # main = Concatenate(axis=3, name='weights_concatenation_layer')([main, weightsExpanded])
+        # Concatenate the weightsLayer to the mainLayer
+        main = Concatenate(axis=3, name='weights_concatenation_layer')([main, weightsExpanded])
         
         main = Conv2D(filters=1, kernel_size=(1, 1), name='final_conv_layer')(main)
         
@@ -87,7 +85,9 @@ class Portfolio():
         # CategoricalCrossentropy applies a softmax too even if from_logits=False is set, because the output is not understood properly
         outputLogits = Flatten()(main)  # bring it into the right shape
         
-        eiieCnnWithWeightsModel = CustomModel(inputs=mainInputLayer, outputs=outputLogits, name='eiie_cnn_with_weights')
+        eiieCnnWithWeightsModel = CustomModel(inputs=[mainInputLayer, weightsInputLayer],
+                                              outputs=outputLogits,
+                                              name='eiie_cnn_with_weights')
         self.model = eiieCnnWithWeightsModel
     
     
@@ -117,7 +117,7 @@ class Portfolio():
 # TODO : custom train loop where i obtain the intermediate fitted weights and give them as input in the next epoch
 # this is the concept of the portfolio vector memory (pvm)
 class CustomModel(tf.keras.Model):
-    # pvm = [[1., 0., 0., 0., 0., 0.]]
+    pvm = []
 
     """
     Implementation of the custom training loop from scratch.
@@ -140,22 +140,31 @@ class CustomModel(tf.keras.Model):
         
         for epoch in range(epochs):
             print("\nSTART OF EPOCH {}".format(epoch))
+            minibatchSize = originalMinibatchSize  # reset
             
+            # TODO : are there better starting values? all in cash simply?
+            # reset and use optimal weights as default values for now
+            self.pvm.append(weights[0:minibatchSize])
             lossTracker = []
-            for i in range(0, numOfMiniBatches):
+            
+            for i in range(1, numOfMiniBatches):
                 # check if minibatch size is not too big and make it smaller if it does not fit the dataset
                 if (i+1)*minibatchSize >= dataSize:
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
-                else:
-                    minibatchSize = originalMinibatchSize
+                # else:
+                #     minibatchSize = originalMinibatchSize
                 
                 with tf.GradientTape() as tape:
-                    predictedPortfolioWeights = self(data[(i*minibatchSize):((i+1)*minibatchSize)],
+                    predictedPortfolioWeights = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
+                                                     self.pvm[i-1][0:minibatchSize]],  # w_t-1, weights from previous minibatch of previous period
                                                      training=True)
 
                     loss = self.compiled_loss(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
                                               tf.convert_to_tensor(predictedPortfolioWeights),
                                               regularization_losses=self.losses)
+                
+                # FIGURE 3a: this adds the portfolio vector memory of the minibatch
+                self.pvm.append(tf.nn.softmax(predictedPortfolioWeights).numpy())
                 
                 lossTracker.append(loss)
                 # compute the gradient now
@@ -167,21 +176,20 @@ class CustomModel(tf.keras.Model):
                                                    tf.convert_to_tensor(predictedPortfolioWeights))
             
             # loss tracker and accuracy printer might be nice, but it costs more computational power so maybe just ignore it
-            # print('Current loss: {}'.format(np.mean(lossTracker)))
+            print('Current loss: {}'.format(np.mean(lossTracker)))
             self.compiled_metrics.reset_state()
+            self.pvm = []  # reset
     
     
-    
+    # TODO : remove when not needed anymore
+    # this custom train_step function is only used for debugging purposes
     # https://www.tensorflow.org/guide/keras/customizing_what_happens_in_fit
     def train_step(self, data):
         trainData, optimalPortfolioWeights = data
-        # print('\ntrainData shape: {}'.format(np.shape(trainData)))
-        # print('opt port weights shape: {}'.format(np.shape(optimalPortfolioWeights)))
         
         with tf.GradientTape() as tape:
             predictedPortfolioWeights = self(trainData,
                                              training=True)
-            # print('predicted portf weights shape: {}'.format(np.shape(predictedPortfolioWeights)))
             
             loss = self.compiled_loss(optimalPortfolioWeights,
                                       predictedPortfolioWeights,
@@ -202,7 +210,7 @@ if __name__ == '__main__':
     K.set_image_data_format('channels_last')
     
     # define a few neural network specific variables
-    epochs = 600  # 1200
+    epochs = 1200  # 1200
     window = 50
     minibatchSize = 32
     learning_rate = 0.00019
@@ -216,7 +224,7 @@ if __name__ == '__main__':
         
     # start portfolio simulation
     portfolio = Portfolio()
-    portfolio.createEiieCnnWithWeights(data)
+    portfolio.createEiieCnnWithWeights(data, priceRelativeVectors)
     
     # with the simulated y_true (optimalWeights), categorical crossentropy loss makes the most sense
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
@@ -240,7 +248,7 @@ if __name__ == '__main__':
     optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVector)
     
     # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
-    logits = portfolio.model.predict(testData)
+    logits = portfolio.model.predict([testData, optimalTestWeights])
     
     # Calculate and visualize how the portfolio value changes over time
     portfolioValue = [10000]
