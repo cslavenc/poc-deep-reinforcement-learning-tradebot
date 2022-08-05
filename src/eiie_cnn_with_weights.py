@@ -24,19 +24,6 @@ def expandDimensions(weights):
     return expandedWeights
 
 class Portfolio():
-    # the logits of the portfolio weights are saved here (use tf.nn.softmax() to obtain the actual weights)
-    portfolioVectorMemory = []
-    
-    def initializePortfolioVectorMemory(self):
-        # Actually, it saves the logits as these are in fact glued for the weight input layer
-        # logits need to be softmaxed to obtain the weights,
-        # but softmaxing happens after the weight input layer has been concatenated to the$
-        # main neural network at level of *logits* in fact
-        # Also, logits offer a better numerical stability
-        # Note: the first idx simply uses the weights 1 resp 0 to keep things simple
-        self.portfolioVectorMemory = []  # TODO : first one is 1 for cash rest 0 (initially, all money is in cash simply)
-    
-    
     """
     EQUATION 2: p_t = p_t-1 * <y_t, w_t-1>
     
@@ -59,8 +46,8 @@ class Portfolio():
     return: an EIIE CNN model with weights concatenated
     
     NOTE: if using GPU mode, shapes and kernel sizes need to be adapted
-    NOTE: the weights are also known as the **portfolio vector memory** or PVM in the paper
-    NOTE: The PVM excludes the cash weights. This implementation uses the cash weights anyway
+    NOTE: the weights are also known as the **portfolio vector memory** or portfolioVectorMemory in the paper
+    NOTE: The portfolioVectorMemory excludes the cash weights. This implementation uses the cash weights anyway
           if it is present in the input data (often simulated as BUSDUSDT)
     """
     def createEiieCnnWithWeights(self, X_tensor, weights):
@@ -114,10 +101,20 @@ class Portfolio():
         return np.asarray(optimalWeights)
 
 
-# TODO : custom train loop where i obtain the intermediate fitted weights and give them as input in the next epoch
-# this is the concept of the portfolio vector memory (pvm)
+"""
+This custom model implements the basis necessary for the RL enviromnent.
+It uses the intermediate portfolio weights for a minibatch from the previous timestep
+as input in the current timestep.
+
+NOTE: ensuring that the custom train loop in train() is correct, it has been
+      compared to a custom implementation of train_step() (which is used in fit()).
+      train_step() in turn has been sanity checked on the basic fit() function.
+NOTE: keep in mind that the portfolio vector memory for a minibatch has shape 
+      (minibatchSize, marketsSize), e.g. (32, 6).
+      Thus we get many pairs of portfolio weights.
+"""
 class CustomModel(tf.keras.Model):
-    pvm = []
+    portfolioVectorMemory = []
 
     """
     Implementation of the custom training loop from scratch.
@@ -144,19 +141,17 @@ class CustomModel(tf.keras.Model):
             
             # TODO : are there better starting values? all in cash simply?
             # reset and use optimal weights as default values for now
-            self.pvm.append(weights[0:minibatchSize])
+            self.portfolioVectorMemory.append(weights[0:minibatchSize])
             lossTracker = []
             
             for i in range(1, numOfMiniBatches):
                 # check if minibatch size is not too big and make it smaller if it does not fit the dataset
                 if (i+1)*minibatchSize >= dataSize:
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
-                # else:
-                #     minibatchSize = originalMinibatchSize
                 
                 with tf.GradientTape() as tape:
                     predictedPortfolioWeights = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
-                                                     self.pvm[i-1][0:minibatchSize]],  # w_t-1, weights from previous minibatch of previous period
+                                                     self.portfolioVectorMemory[i-1][0:minibatchSize]],  # w_t-1, weights from previous minibatch of previous period
                                                      training=True)
 
                     loss = self.compiled_loss(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
@@ -164,7 +159,7 @@ class CustomModel(tf.keras.Model):
                                               regularization_losses=self.losses)
                 
                 # FIGURE 3a: this adds the portfolio vector memory of the minibatch
-                self.pvm.append(tf.nn.softmax(predictedPortfolioWeights).numpy())
+                self.portfolioVectorMemory.append(tf.nn.softmax(predictedPortfolioWeights).numpy())
                 
                 lossTracker.append(loss)
                 # compute the gradient now
@@ -178,7 +173,7 @@ class CustomModel(tf.keras.Model):
             # loss tracker and accuracy printer might be nice, but it costs more computational power so maybe just ignore it
             print('Current loss: {}'.format(np.mean(lossTracker)))
             self.compiled_metrics.reset_state()
-            self.pvm = []  # reset
+            self.portfolioVectorMemory = []  # reset
     
     
     # TODO : remove when not needed anymore
