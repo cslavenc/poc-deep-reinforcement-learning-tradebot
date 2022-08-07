@@ -10,7 +10,6 @@ import numpy as np
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate
 
 from utils.utils import prepareData
@@ -124,6 +123,7 @@ class CustomModel(tf.keras.Model):
     
     :param data, the full training data
     :param weights, only needed for crossentropy loss function
+    :param minibatchSize
     :param epochs, epochs to iterate over for the most outer for-loop
     
     """    
@@ -150,16 +150,16 @@ class CustomModel(tf.keras.Model):
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
                 
                 with tf.GradientTape() as tape:
-                    predictedPortfolioWeights = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
+                    predictedPortfolioLogits = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
                                                      self.portfolioVectorMemory[i-1][0:minibatchSize]],  # w_t-1, weights from previous minibatch of previous period
                                                      training=True)
-
+                    # logits are automatically softmaxed here
                     loss = self.compiled_loss(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
-                                              tf.convert_to_tensor(predictedPortfolioWeights),
+                                              tf.convert_to_tensor(predictedPortfolioLogits),
                                               regularization_losses=self.losses)
                 
                 # FIGURE 3a: this adds the portfolio vector memory of the minibatch
-                self.portfolioVectorMemory.append(tf.nn.softmax(predictedPortfolioWeights).numpy())
+                self.portfolioVectorMemory.append(tf.nn.softmax(predictedPortfolioLogits).numpy())
                 
                 lossTracker.append(loss)
                 # compute the gradient now
@@ -168,36 +168,12 @@ class CustomModel(tf.keras.Model):
                 self.optimizer.apply_gradients(zip(gradients, self.trainable_weights))
                 # Update metrics (includes the metric that tracks the loss)
                 self.compiled_metrics.update_state(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
-                                                   tf.convert_to_tensor(predictedPortfolioWeights))
+                                                   tf.convert_to_tensor(predictedPortfolioLogits))
             
             # loss tracker and accuracy printer might be nice, but it costs more computational power so maybe just ignore it
             print('Current loss: {}'.format(np.mean(lossTracker)))
             self.compiled_metrics.reset_state()
             self.portfolioVectorMemory = []  # reset for the next epoch
-    
-    
-    # TODO : remove when not needed anymore
-    # this custom train_step function is only used for debugging purposes
-    # https://www.tensorflow.org/guide/keras/customizing_what_happens_in_fit
-    def train_step(self, data):
-        trainData, optimalPortfolioWeights = data
-        
-        with tf.GradientTape() as tape:
-            predictedPortfolioWeights = self(trainData,
-                                             training=True)
-            
-            loss = self.compiled_loss(optimalPortfolioWeights,
-                                      predictedPortfolioWeights,
-                                      regularization_losses = self.losses)
-        
-        # compute the gradient now
-        gradients = tape.gradient(loss, self.trainable_variables)
-        # Update weights
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-        # Update metrics (includes the metric that tracks the loss)
-        self.compiled_metrics.update_state(optimalPortfolioWeights, predictedPortfolioWeights)
-        # Return a dict mapping metric names to current value
-        return {m.name: m.result() for m in self.metrics}
 
 
 if __name__ == '__main__':
@@ -230,8 +206,6 @@ if __name__ == '__main__':
     
     # simulate y_true
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
-    # portfolio.model.fit(x=data, y=optimalWeights,
-    #                     batch_size=minibatchSize, epochs=epochs)
     portfolio.model.train(data, optimalWeights, minibatchSize, epochs)
     
     # prepare test data
@@ -246,7 +220,7 @@ if __name__ == '__main__':
     logits = portfolio.model.predict([testData, optimalTestWeights])
     
     # Calculate and visualize how the portfolio value changes over time
-    portfolioValue = [10000]
+    portfolioValue = [10000.]
     portfolioWeights = tf.nn.softmax(logits)
     for i in range(1,len(testPriceRelativeVector)):
         portfolioValue.append(
