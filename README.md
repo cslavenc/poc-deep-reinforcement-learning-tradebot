@@ -4,6 +4,11 @@ This project implements the EIIE CNN at different levels of abstraction:
 - simple_eiie_cnn.py implements the basic EIIE CNN without adding any weights or biases (figure 2, page 11) or the reinforcement environment.
 - eiie_cnn_with_weights.py implements a custom training loop to make proper use of the portfolio vector memory  
 **Note**: it does not make use of the RL reward function yet and trading fees are ignored!
+- deep_rl_eiie_cnn_with_weights.py uses the reward function as the custom loss function.
+This effectively enables the RL environment, since that function is maximized instead of minimized in a traditional setting.  
+However, it does not include trading fees currently nor does it choose the minibatches based on a geometric distribution.
+Moreover, the cash bias that is concatenated in the neural network is not present as it
+still uses **USDCUSDT** as an asset to simulate cash.
 - TODO
 
 
@@ -20,6 +25,26 @@ Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU
 - Sometimes, the loss gets stuck at the same value from the very beginning.
 Usually, restarting helps
 - Sometimes, the loss or gradients are `nan`. Closing the current ipython console
-and running the file in a new one helps.  
+and running the file in a new one helps. The `nan` value used to occur when using logits as input
+values for the custom loss function. Using the corresponding weights did not lead to that problem anymore. 
 This is probably due to things being cached in the background and after changes are made
-tensorflow becomes confused.
+tensorflow becomes confused.  
+
+**float32/64**:
+- there are some issues around tf.float64, so tf.float32 has been used instead where applicable
+
+**epochs**:
+- it is unclear yet, what increasing epochs really do
+- with the current final model (weights, custom loss function, **no** separate cash bias),
+more epochs look qualitatively the same with a potential improvement, but they take longer to train on CPU
+- epochs compared were 100 vs 1000
+
+**Using w_t-1 in the cumulated return loss function**:
+- since I did not find a way to simply save the previous portfolio weights and use the in the next
+step during the "loss" calculation (gradients were always `None`), I used a trick, where the current
+predicted portfolio weights are used for the next priceRelativeVectors (at t+1).  
+The operations for forward pass and backpropagation are not available when iterating within a loop,
+as you can only save the tensor of the portfolio weights. Tensorflow does not know what to 
+do with that exactly trying to compute gradients for the following period, since
+the operations are not recorded anymore. Only those operations are available that are
+within the same loop/GradientTape.
