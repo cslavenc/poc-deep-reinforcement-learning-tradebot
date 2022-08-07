@@ -151,7 +151,7 @@ class CustomModel(tf.keras.Model):
                 
                 with tf.GradientTape() as tape:
                     predictedPortfolioLogits = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
-                                                     self.portfolioVectorMemory[i-1][0:minibatchSize]],  # w_t-1, weights from previous minibatch of previous period
+                                                     self.portfolioVectorMemory[i-1][0:minibatchSize]],  # w_t-1, weights from previous minibatch
                                                      training=True)
                     # logits are automatically softmaxed here
                     loss = self.compiled_loss(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
@@ -213,8 +213,8 @@ if __name__ == '__main__':
     endRangeTest = datetime.datetime(2022,6,25,0,0,0)
     
     # update y_true for new time range
-    testData, testPriceRelativeVector, _ = prepareData(startRangeTest, endRangeTest, markets, window)
-    optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVector)
+    testData, testPriceRelativeVectors, _ = prepareData(startRangeTest, endRangeTest, markets, window)
+    optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
     
     # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
     logits = portfolio.model.predict([testData, optimalTestWeights])
@@ -222,8 +222,8 @@ if __name__ == '__main__':
     # Calculate and visualize how the portfolio value changes over time
     portfolioValue = [10000.]
     portfolioWeights = tf.nn.softmax(logits)
-    for i in range(1,len(testPriceRelativeVector)):
+    for i in range(1,len(testPriceRelativeVectors)):
         portfolioValue.append(
-            portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVector[i]), np.asarray(portfolioWeights[i-1])))
+            portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVectors[i]), np.asarray(portfolioWeights[i-1])))
     
     plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest)

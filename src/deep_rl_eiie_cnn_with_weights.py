@@ -10,7 +10,7 @@ import numpy as np
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate
+from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
 from utils.utils import prepareData
 from utils.plot_utils import plotPortfolioValueChange
@@ -66,13 +66,11 @@ class Portfolio():
         main = Concatenate(axis=3, name='weights_concatenation_layer')([main, weightsExpanded])
         
         main = Conv2D(filters=1, kernel_size=(1, 1), name='final_conv_layer')(main)
-        
-        # TODO : would it make sense to use a softmax layer here after all? since im not using CategoricalCrossentropy in the final version anymore...
-        # NOTE: no need to apply softmax. Use logits, they are more numerically stable
         outputLogits = Flatten()(main)  # bring it into the right shape
+        outputWeights = Softmax()(outputLogits)
         
         eiieCnnWithWeightsModel = CustomModel(inputs=[mainInputLayer, weightsInputLayer],
-                                              outputs=outputLogits,
+                                              outputs=outputWeights,
                                               name='eiie_cnn_with_weights')
         self.model = eiieCnnWithWeightsModel
     
@@ -167,8 +165,7 @@ class CustomModel(tf.keras.Model):
             print("\nSTART OF EPOCH {}".format(epoch))
             minibatchSize = originalMinibatchSize  # reset
             
-            # TODO : are there better starting values? all in cash simply?
-            # reset and use optimal weights as default values for now
+            # reset and use optimal weights as default values
             self.portfolioVectorMemory.append(tf.convert_to_tensor(weights[0:minibatchSize], dtype=tf.float32))
             lossTracker = []
             
@@ -178,18 +175,18 @@ class CustomModel(tf.keras.Model):
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
                 
                 with tf.GradientTape() as tape:
-                    predictedPortfolioLogits = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
+                    predictedPortfolioWeights = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
                                                       # w_t-1, weights from previous minibatch
                                                       self.portfolioVectorMemory[i-1][0:minibatchSize]],
                                                      training=True)
 
                     loss = self.compiled_loss(priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)],
-                                              tf.nn.softmax(predictedPortfolioLogits[0:minibatchSize]),
+                                              predictedPortfolioWeights[0:minibatchSize],
                                               regularization_losses=self.losses)
                 
                 
                 # FIGURE 3a: this adds the portfolio vector memory of the minibatch (shape: (minibatchSize, marketsSize))
-                self.portfolioVectorMemory.append(tf.nn.softmax(predictedPortfolioLogits))
+                self.portfolioVectorMemory.append(predictedPortfolioWeights)
                 
                 lossTracker.append(loss)
                 
@@ -198,11 +195,10 @@ class CustomModel(tf.keras.Model):
                 
                 # Update weights
                 self.optimizer.apply_gradients(zip(gradients, self.trainable_weights))
+                
                 # Update metrics (includes the metric that tracks the loss)
-                # TODO : do i really need predicted logits or the weights?
-                # TODO : does this metric here even make sense, since I am not using it in an argmax fashion?
                 self.compiled_metrics.update_state(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
-                                                   tf.convert_to_tensor(predictedPortfolioLogits))
+                                                   tf.convert_to_tensor(predictedPortfolioWeights))
                 # reset for the next minibatch
                 self.rewardPerEpisode = []
                 
@@ -244,7 +240,7 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,1,0,0,0)
+    startRange = datetime.datetime(2022,6,17,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
@@ -268,21 +264,20 @@ if __name__ == '__main__':
     
     # prepare test data
     startRangeTest = datetime.datetime(2022,6,22,0,0,0)
-    endRangeTest = datetime.datetime(2022,6,30,0,0,0)
+    endRangeTest = datetime.datetime(2022,7,15,0,0,0)
     
     # update y_true for new time range
-    testData, testPriceRelativeVector, _ = prepareData(startRangeTest, endRangeTest, markets, window)
-    testPriceRelativeVector = sanitizeCashValues(testPriceRelativeVector)
-    optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVector)
+    testData, testPriceRelativeVectors, _ = prepareData(startRangeTest, endRangeTest, markets, window)
+    testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
+    optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
     
-    # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
-    logits = portfolio.model.predict([testData, optimalTestWeights])
+    # # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
+    portfolioWeights = portfolio.model.predict([testData, optimalTestWeights])
     
     # Calculate and visualize how the portfolio value changes over time
     portfolioValue = [10000.]
-    portfolioWeights = tf.nn.softmax(logits)
-    for i in range(1,len(testPriceRelativeVector)):
+    for i in range(1,len(testPriceRelativeVectors)):
         portfolioValue.append(
-            portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVector[i]), np.asarray(portfolioWeights[i-1])))
+            portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVectors[i]), np.asarray(portfolioWeights[i-1])))
     
     plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest)

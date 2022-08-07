@@ -174,8 +174,7 @@ class CustomModel(tf.keras.Model):
             print("\nSTART OF EPOCH {}".format(epoch))
             minibatchSize = originalMinibatchSize  # reset
             
-            # TODO : are there better starting values? all in cash simply?
-            # reset and use optimal weights as default values for now
+            # reset and use optimal weights as default values
             self.portfolioVectorMemory.append(tf.convert_to_tensor(weights[0:minibatchSize], dtype=tf.float32))
             lossTracker = []
             
