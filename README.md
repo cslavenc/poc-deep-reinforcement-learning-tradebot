@@ -8,7 +8,10 @@ This project implements the EIIE CNN at different levels of abstraction:
 This effectively enables the RL environment, since that function is maximized instead of minimized in a traditional setting.  
 However, it does not include trading fees currently nor does it choose the minibatches based on a geometric distribution.
 Moreover, the cash bias that is concatenated in the neural network is not present as it
-still uses **USDCUSDT** as an asset to simulate cash.
+still uses **BUSDUSDT** as an asset to simulate cash.
+- eiie_cnn_with_weights_and_cash_bias.py does not perform so well, since it tries to learn the argmax function basically,
+but the concatenated cash bias is a big hindrance to that.  
+This is not so grave, since this file was an initial POC for the deep RL EIIE CNN.
 - TODO
 
 
@@ -30,7 +33,7 @@ values for the custom loss function. Using the corresponding weights did not lea
 This is probably due to things being cached in the background and after changes are made
 tensorflow becomes confused.  
 
-**float32/64**:
+**tf.float32/64**:
 - there are some issues around tf.float64, so tf.float32 has been used instead where applicable
 
 **epochs**:
