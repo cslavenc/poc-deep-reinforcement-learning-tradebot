@@ -12,6 +12,13 @@ still uses **BUSDUSDT** as an asset to simulate cash.
 - eiie_cnn_with_weights_and_cash_bias.py does not perform so well, since it tries to learn the argmax function basically,
 but the concatenated cash bias is a big hindrance to that.  
 This is not so grave, since this file was an initial POC for the deep RL EIIE CNN.
+- deep_rl_ eiie_cnn_with_weights_and_cash_bias.py: preliminary results have shown that concatenating a cash bias on the level of logits
+leads to very bad results. In fact, it seems to prefer cash over assets most of the time.
+From a mathematical perspective, the cash bias was chosen to be 1. and when applying the softmax
+function with the other logits, it usually allocates the entire portfolio in cash.  
+Since logits can be many magnitudes of order bigger than 1. or negative even, the cash bias
+seems like a strange outlier and thus, softmaxing with this artificial cash bias leads to
+unusable weights (weight 1 almost always in cash bias, while others are basically 0)
 - TODO
 
 
@@ -51,3 +58,7 @@ as you can only save the tensor of the portfolio weights. Tensorflow does not kn
 do with that exactly trying to compute gradients for the following period, since
 the operations are not recorded anymore. Only those operations are available that are
 within the same loop/GradientTape.
+
+**Cash Bias**:
+- concatenating the cash bias as proposed in the paper did not yield good results in preliminary trials.
+- it seems that using cash as another asset (can be simulated as **BUSDUSDT** for example) gives much more meaningful weight distributions

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Aug  7 17:41:46 2022
+Created on Sun Aug  7 18:17:06 2022
 
 @author: slaven
 """
@@ -64,23 +64,25 @@ class Portfolio():
         weightsExpanded = Lambda(expandDimensions, name='weights_expansion_layer')(weightsInputLayer)
         
         # Concatenate the weightsLayer to the mainLayer
-        main = Concatenate(axis=3, name='weights_concatenation_layer')([main, weightsExpanded])
+        main = Concatenate(axis=3, name='weights_concatenation_layer')([main, weightsExpanded])        
         main = Conv2D(filters=1, kernel_size=(1, 1), name='final_conv_layer')(main)
         
         cashBiasInputLayer = Input(shape=cashBiasInputShape, name='cash_bias_input_layer')
         cashBiasExpanded = Lambda(expandDimensions, name='cash_bias_expansion_layer')(cashBiasInputLayer)
         
         main = Concatenate(axis=1, name='cash_bias_concatenation_layer')([cashBiasExpanded, main])
+
         
-        # NOTE: no need to apply softmax. Use logits, they are more numerically more stable in the CategoricalCrossentropy loss function
-        # CategoricalCrossentropy applies a softmax too even if from_logits=False is set, because the output is not understood properly
+        # TODO : would it make sense to use a softmax layer here after all? since im not using CategoricalCrossentropy in the final version anymore...
+        # NOTE: no need to apply softmax. Use logits, they are more numerically stable
         outputLogits = Flatten()(main)  # bring it into the right shape
         
-        eiieCnnWithWeightsAndCashBiasModel = CustomModel(inputs=[mainInputLayer,weightsInputLayer,
+        eiieCnnWithWeightsAndCashBiasModel = CustomModel(inputs=[mainInputLayer, weightsInputLayer,
                                                       cashBiasInputLayer],
                                               outputs=outputLogits,
                                               name='eiie_cnn_with_weights_and_cash_bias')
         self.model = eiieCnnWithWeightsAndCashBiasModel
+    
     
     
     """
@@ -119,6 +121,30 @@ NOTE: keep in mind that the portfolio vector memory for a minibatch has shape
 """
 class CustomModel(tf.keras.Model):
     portfolioVectorMemory = []
+    
+    """
+    EQUATION 22: R = 1/t_f * sum(r_t, start=1, end=t_f+1)
+    This cumulated reward function is used for optimization for gradient *ASCENT*
+    This function is also used as "loss" when optimizing the neural network weights
+    during learning. A normal loss function is usually minimized.
+    This reward function is maximized, which can be simply achieved by inverting the sign.
+    
+    
+    :param currentPriceRelativeVector, y_t from the current period t
+    :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
+    
+    return: R, average logarithmic cumulated reward (negative value for gradient ASCENT)
+    """
+    def cumulatedReturn(self, currentPriceRelativeVector, prevPortfolioWeights):
+        rewardPerEpisode = []
+        
+        for j in range(currentPriceRelativeVector.shape[0]):
+            multiplied = tf.multiply(currentPriceRelativeVector[j], prevPortfolioWeights[j])
+            individualReward = -tf.math.log(tf.reduce_sum(multiplied, axis=0))
+            rewardPerEpisode.append(individualReward)
+        averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)/len(rewardPerEpisode)
+        return averageCumulatedReturn
+
 
     """
     Implementation of the custom training loop from scratch.
@@ -129,10 +155,14 @@ class CustomModel(tf.keras.Model):
     :param data, the full training data
     :param weights, only needed for crossentropy loss function
     :param minibatchSize
+    :param priceRelativeVectors, required to calculate reward for gradient ascent
     :param epochs, epochs to iterate over for the most outer for-loop
     
     """    
-    def train(self, data, weights, cashBias, minibatchSize, epochs):
+    def train(self, data, weights, cashBias, priceRelativeVectors, minibatchSize, epochs):
+        # convert to tensor so it can be used by GradientTape properly
+        priceRelativeVectors = tf.convert_to_tensor(priceRelativeVectors, dtype=tf.float32)
+        
         # prepare for minibatch evaluation
         originalMinibatchSize = minibatchSize
         dataSize = data.shape[0]  # size of the time series
@@ -144,41 +174,72 @@ class CustomModel(tf.keras.Model):
             print("\nSTART OF EPOCH {}".format(epoch))
             minibatchSize = originalMinibatchSize  # reset
             
+            # TODO : are there better starting values? all in cash simply?
             # reset and use optimal weights as default values for now
-            self.portfolioVectorMemory.append(weights[0:minibatchSize])
+            self.portfolioVectorMemory.append(tf.convert_to_tensor(weights[0:minibatchSize], dtype=tf.float32))
             lossTracker = []
             
-            for i in range(1, numOfMiniBatches):
+            for i in range(1, numOfMiniBatches-1):
                 # check if minibatch size is not too big and make it smaller if it does not fit the dataset
                 if (i+1)*minibatchSize >= dataSize:
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
                 
                 with tf.GradientTape() as tape:
                     predictedPortfolioLogits = self([data[(i*minibatchSize):((i+1)*minibatchSize), 1:],
-                                                     self.portfolioVectorMemory[i-1][0:minibatchSize, 1:],  # w_t-1, weights from previous minibatch
-                                                     cashBias[(i*minibatchSize):((i+1)*minibatchSize)]],
+                                                      # w_t-1, weights from previous minibatch
+                                                      self.portfolioVectorMemory[i-1][0:minibatchSize, 1:],
+                                                      cashBias[(i*minibatchSize):((i+1)*minibatchSize)]],
                                                      training=True)
-                    # logits are automatically softmaxed here
-                    loss = self.compiled_loss(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
-                                              tf.convert_to_tensor(predictedPortfolioLogits),
+
+                    loss = self.compiled_loss(priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)],
+                                              tf.nn.softmax(predictedPortfolioLogits[0:minibatchSize]),
                                               regularization_losses=self.losses)
                 
-                # FIGURE 3a: this adds the portfolio vector memory of the minibatch
-                self.portfolioVectorMemory.append(tf.nn.softmax(predictedPortfolioLogits).numpy())
+                
+                # FIGURE 3a: this adds the portfolio vector memory of the minibatch (shape: (minibatchSize, marketsSize))
+                self.portfolioVectorMemory.append(tf.nn.softmax(predictedPortfolioLogits))
                 
                 lossTracker.append(loss)
+                
                 # compute the gradient now
                 gradients = tape.gradient(loss, self.trainable_weights)
+                
                 # Update weights
                 self.optimizer.apply_gradients(zip(gradients, self.trainable_weights))
+                
                 # Update metrics (includes the metric that tracks the loss)
+                # TODO : do i really need predicted logits or the weights?
+                # TODO : does this metric here even make sense, since I am not using it in an argmax fashion?
                 self.compiled_metrics.update_state(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
                                                    tf.convert_to_tensor(predictedPortfolioLogits))
-            
+                # reset for the next minibatch
+                self.rewardPerEpisode = []
+                
             # loss tracker and accuracy printer might be nice, but it costs more computational power so maybe just ignore it
             print('Current loss: {}'.format(np.mean(lossTracker)))
             self.compiled_metrics.reset_state()
             self.portfolioVectorMemory = []  # reset for the next epoch
+
+
+"""
+Sometimes, the cash is slightly below 1, since the current datasets actually looks at
+USDCUSDT which itself fluctuates a little bit. This should not be the case actually.
+Also, a very small bias has been added to values = 1., because sometimes, a crypto asset
+remains constant during a timestep and thus has its price relative value is 1. too and
+the neural network could potentially prefer this one over cash.
+In itself, this does not need to be a bad thing though.
+
+:param priceRelativeVectors, first entry should be the cash (if applicable)
+
+returns: priceRelativeVectors, which the first entry slightly modified
+"""
+def sanitizeCashValues(priceRelativeVectors):
+    smallCashBias = 0.000001
+    for i in range(priceRelativeVectors.shape[0]):
+        if priceRelativeVectors[i, 0] <= 1.:
+            priceRelativeVectors[i, 0] = 1. + smallCashBias
+    
+    return priceRelativeVectors
 
 
 if __name__ == '__main__':
@@ -186,13 +247,13 @@ if __name__ == '__main__':
     K.set_image_data_format('channels_last')
     
     # define a few neural network specific variables
-    epochs = 1200  # 1200
+    epochs = 300
     window = 50
     minibatchSize = 32
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,17,0,0,0)
+    startRange = datetime.datetime(2022,6,1,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
@@ -207,20 +268,22 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     portfolio.model.compile(optimizer=optimizer,
                             run_eagerly=True,
-                            loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+                            loss=portfolio.model.cumulatedReturn,
                             metrics='accuracy')
     
     # simulate y_true
+    priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
-    portfolio.model.train(data=data, weights=optimalWeights, cashBias=cashBias,
-                          minibatchSize=minibatchSize, epochs=epochs)
+    portfolio.model.train(data, optimalWeights, cashBias,
+                          priceRelativeVectors, minibatchSize, epochs)
     
     # prepare test data
-    startRangeTest = datetime.datetime(2022,6,24,0,0,0)
-    endRangeTest = datetime.datetime(2022,6,25,0,0,0)
+    startRangeTest = datetime.datetime(2022,6,22,0,0,0)
+    endRangeTest = datetime.datetime(2022,6,30,0,0,0)
     
     # update y_true for new time range
     testData, testPriceRelativeVectors, _ = prepareData(startRangeTest, endRangeTest, markets, window)
+    testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
     optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
     testCashBias = np.ones(shape=(testPriceRelativeVectors.shape[0], 1), dtype=float)
     
