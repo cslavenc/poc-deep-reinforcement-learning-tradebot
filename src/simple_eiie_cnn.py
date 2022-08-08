@@ -162,7 +162,7 @@ if __name__ == '__main__':
     logits = portfolio.model.predict(testData)
     
     # Calculate and visualize how the portfolio value changes over time
-    portfolioValue = [10000]
+    portfolioValue = [10000.]
     portfolioWeights = tf.nn.softmax(logits)
     for i in range(1,len(testPriceRelativeVector)):
         portfolioValue.append(

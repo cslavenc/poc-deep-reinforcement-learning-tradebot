@@ -25,16 +25,17 @@ def saveData(market, tick_interval, limit, flag=False):
     structured = []
     
     for rep in range(reps-1,-1,-1):  # start included, end excluded, -1 reverses sequence
+        print("\tExecuting Epoch {}/{}...".format(reps-rep, reps))
         url = 'https://api.binance.com/api/v3/klines?symbol='+market+'&interval='+tick_interval\
             + '&limit='+limit\
             + "&endTime="+str(todayInMilliseconds - timeIntervalInMilliseconds * int(limit) * rep)
         data = requests.get(url).json()
-        print(data)
+        if np.size(data) == 0:
+            continue
         
         for entry in data:
             temp = structureDatapoint(entry)
             structured.append(temp)
-        print("\tExecuting Epoch {}...".format(rep))
     
     print('*** DATA RETRIEVED! ***')  
     df = pd.DataFrame(data=structured)

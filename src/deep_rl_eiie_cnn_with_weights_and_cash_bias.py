@@ -256,7 +256,7 @@ if __name__ == '__main__':
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
-    data, priceRelativeVectors, _ = prepareData(startRange, endRange, markets, window)
+    data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
     cashBias = np.ones(shape=(priceRelativeVectors.shape[0], 1), dtype=float)
         
     # start portfolio simulation
@@ -281,7 +281,7 @@ if __name__ == '__main__':
     endRangeTest = datetime.datetime(2022,6,30,0,0,0)
     
     # update y_true for new time range
-    testData, testPriceRelativeVectors, _ = prepareData(startRangeTest, endRangeTest, markets, window)
+    testData, testPriceRelativeVectors = prepareData(startRangeTest, endRangeTest, markets, window)
     testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
     optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
     testCashBias = np.ones(shape=(testPriceRelativeVectors.shape[0], 1), dtype=float)
