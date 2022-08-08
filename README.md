@@ -1,10 +1,10 @@
 # poc-deep-reinforcement-learning-tradebot
 A custom implementation of the paper [**A Deep Reinforcement Learning Framework for the Financial Portfolio Management Problem**](https://arxiv.org/pdf/1706.10059.pdf).  
 This project implements the EIIE CNN at different levels of abstraction:
-- simple_eiie_cnn.py implements the basic EIIE CNN without adding any weights or biases (figure 2, page 11) or the reinforcement environment.
-- eiie_cnn_with_weights.py implements a custom training loop to make proper use of the portfolio vector memory  
+- `simple_eiie_cnn.py` implements the basic EIIE CNN without adding any weights or biases (figure 2, page 11) or the reinforcement environment.
+- `eiie_cnn_with_weights.py` implements a custom training loop to make proper use of the portfolio vector memory  
 **Note**: it does not make use of the RL reward function yet and trading fees are ignored!
-- deep_rl_eiie_cnn_with_weights.py uses the reward function as the custom loss function.
+- `deep_rl_eiie_cnn_with_weights.py` uses the reward function as the custom loss function.
 This effectively enables the RL environment, since that function is maximized instead of minimized in a traditional setting.  
 However, it does not include trading fees currently nor does it choose the minibatches based on a geometric distribution.
 Moreover, the cash bias that is concatenated in the neural network is not present as it
@@ -12,13 +12,15 @@ still uses **BUSDUSDT** as an asset to simulate cash.
 - eiie_cnn_with_weights_and_cash_bias.py does not perform so well, since it tries to learn the argmax function basically,
 but the concatenated cash bias is a big hindrance to that.  
 This is not so grave, since this file was an initial POC for the deep RL EIIE CNN.
-- deep_rl_ eiie_cnn_with_weights_and_cash_bias.py: preliminary results have shown that concatenating a cash bias on the level of logits
+- `deep_rl_ eiie_cnn_with_weights_and_cash_bias.py`: preliminary results have shown that concatenating a cash bias on the level of logits
 leads to very bad results. In fact, it seems to prefer cash over assets most of the time.
 From a mathematical perspective, the cash bias was chosen to be 1. and when applying the softmax
 function with the other logits, it usually allocates the entire portfolio in cash.  
 Since logits can be many magnitudes of order bigger than 1. or negative even, the cash bias
 seems like a strange outlier and thus, softmaxing with this artificial cash bias leads to
 unusable weights (weight 1 almost always in cash bias, while others are basically 0)
+-`deep_rl_eiie_cnn_with_weights_and_trading_fees.py` did not show an improvement in preliminary test trials.  
+In fact, it performed worse and it was not able to avoid larger drops. Qualitatively, the graph looked similar to the version without trading fees.
 - TODO
 
 
@@ -62,3 +64,6 @@ within the same loop/GradientTape.
 **Cash Bias**:
 - concatenating the cash bias as proposed in the paper did not yield good results in preliminary trials.
 - it seems that using cash as another asset (can be simulated as **BUSDUSDT** for example) gives much more meaningful weight distributions
+
+**Starting weights w_0**:
+- optimal weights as starting weights during minibatches seem to work better than using weights, where everything is in cash initially
