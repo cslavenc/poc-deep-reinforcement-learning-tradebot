@@ -118,22 +118,19 @@ class CustomModel(tf.keras.Model):
     
     
     """
-    Calculate mu.
+    Calculate the transaction remainder factor mu.
+    Keep in mind that the paper uses w_t-1, w_t, mu_t and y_t for calculations.
+    Since 
     """
     def calculateTransactionRemainderFactor(self, priceRelativeVectors, previousPortfolioWeights,
                                             predictedPortfolioWeights):
         # EQUATION 7: w_t' = elwiseMultiplication(y_t, w_t-1) / <y_t, w_t-1>
         multiplied = tf.math.multiply(priceRelativeVectors, previousPortfolioWeights)
-        # print('multiplied: {}'.format(multiplied))
         dotProduct = tf.math.reduce_sum(multiplied, axis=1, keepdims=True)
-        # print('dotProduct: {}'.format(dotProduct))
         currentPortfolioWeightsPrime = tf.math.divide(multiplied, dotProduct)
-        # print('previous portf weights[1]: {}'.format(previousPortfolioWeights[1]))
-        # print('wPrime[1]: {}'.format(currentPortfolioWeightsPrime[1]))
         
         # EQUATION 16: initial guess for the first value of the sequence
         transactionRemainderFactor = self.tradingFees * tf.math.reduce_sum(tf.math.abs(currentPortfolioWeightsPrime - predictedPortfolioWeights), axis=0, keepdims=True)
-        # print('initial guess mu: {}'.format(transactionRemainderFactor))
         
         # THEOREM 1: (1/(1-c_p*w_t,0)) * (1-c_p*w_t,0' - (c_s + c_p - c_s*c_p) * sum(relu(w_t,i' - mu*w_t,i), start=1, end=numOfAssets))
         for k in range(self.cutoffForConvergence):
@@ -141,16 +138,13 @@ class CustomModel(tf.keras.Model):
             multipliedMax = tf.math.maximum(
                 (currentPortfolioWeightsPrime - tf.math.multiply(
                     transactionRemainderFactor, predictedPortfolioWeights)), 0)
-            # print('multipliedMax: {}'.format(multipliedMax))
             
-            transactionRemainderFactorSuffix =  tf.math.reduce_sum(
-                multipliedMax, axis=1, keepdims=True)
-            # print('mu suffix: {}'.format(transactionRemainderFactorSuffix))
+            transactionRemainderFactorSuffix =  tf.math.reduce_sum(multipliedMax, 
+                                                                   axis=1, keepdims=True)
             
             transactionRemainderFactor = tf.math.multiply((1. / (1. - tf.math.multiply(self.tradingFees, predictedPortfolioWeights[0]))),
                                   (1. - tf.math.multiply(self.tradingFees, currentPortfolioWeightsPrime[0])\
                                    - tf.math.multiply((self.tradingFees + self.tradingFees - self.tradingFees*self.tradingFees), transactionRemainderFactorSuffix)))
-        # print('mu: {}'.format(transactionRemainderFactor))
         
         return transactionRemainderFactor
     
