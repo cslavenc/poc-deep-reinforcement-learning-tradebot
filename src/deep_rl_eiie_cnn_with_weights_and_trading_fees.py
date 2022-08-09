@@ -120,12 +120,20 @@ class CustomModel(tf.keras.Model):
     """
     Calculate the transaction remainder factor mu.
     Keep in mind that the paper uses w_t-1, w_t, mu_t and y_t for calculations.
-    Since 
+    Since mu_t cannot be used in the custom loss function because y_t+1 is required,
+    mu_t+1 is actually calculated in the train() function.
+    Nevertheless, the formula is the same.
+    
+    :param priceRelativeVectors, y_t+1 (paper: y_t)
+    :param predictedPortfolioWeights, w_t of the current iteration (paper: w_t-1)
+    :param predictedPortfolioWeights, w_t+1 (paper: w_t)
+    
+    returns: the transaction remainder factor mu_t+1 (paper returns mu_t)
     """
-    def calculateTransactionRemainderFactor(self, priceRelativeVectors, previousPortfolioWeights,
-                                            predictedPortfolioWeights):
+    def calculateTransactionRemainderFactor(self, priceRelativeVectors, predictedPortfolioWeights,
+                                            futurePortfolioWeights):
         # EQUATION 7: w_t' = elwiseMultiplication(y_t, w_t-1) / <y_t, w_t-1>
-        multiplied = tf.math.multiply(priceRelativeVectors, previousPortfolioWeights)
+        multiplied = tf.math.multiply(priceRelativeVectors, predictedPortfolioWeights)
         dotProduct = tf.math.reduce_sum(multiplied, axis=1, keepdims=True)
         currentPortfolioWeightsPrime = tf.math.divide(multiplied, dotProduct)
         
@@ -137,7 +145,7 @@ class CustomModel(tf.keras.Model):
             # SUM of EQUATION 14
             multipliedMax = tf.math.maximum(
                 (currentPortfolioWeightsPrime - tf.math.multiply(
-                    transactionRemainderFactor, predictedPortfolioWeights)), 0)
+                    transactionRemainderFactor, futurePortfolioWeights)), 0)
             
             transactionRemainderFactorSuffix =  tf.math.reduce_sum(multipliedMax, 
                                                                    axis=1, keepdims=True)
@@ -167,8 +175,7 @@ class CustomModel(tf.keras.Model):
         
         for j in range(currentPriceRelativeVector.shape[0]):
             multiplied = tf.multiply(currentPriceRelativeVector[j], previousPortfolioWeights[j])
-            # individualReward = -tf.math.log(tf.multiply(self.transactionRemainderFactor, tf.reduce_sum(multiplied, axis=0)))
-            individualReward = -tf.math.log(tf.reduce_sum(multiplied, axis=0))
+            individualReward = -tf.math.log(tf.multiply(self.transactionRemainderFactor, tf.reduce_sum(multiplied, axis=0)))
             rewardPerEpisode.append(individualReward)
         # averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)/len(rewardPerEpisode)
         averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)
@@ -213,7 +220,6 @@ class CustomModel(tf.keras.Model):
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
                 # minibatchSize for futurePortfolioWeights and transactionRemainderFactor
                 futureMinibatchSize = priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)].shape[0]
-                print(futureMinibatchSize)
                 
                 # the predicted portfolio weights correspend to timestep t and not t-1 as in the paper
                 # this is because when saving the portfolio weights to the portfolioVectorMemory,
