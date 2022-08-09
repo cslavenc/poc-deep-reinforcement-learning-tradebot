@@ -280,4 +280,4 @@ if __name__ == '__main__':
         portfolioValue.append(
             portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVectors[i]), np.asarray(portfolioWeights[i-1])))
     
-    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest)
+    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)

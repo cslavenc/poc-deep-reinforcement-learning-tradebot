@@ -208,8 +208,8 @@ if __name__ == '__main__':
     portfolio.model.train(data, optimalWeights, minibatchSize, epochs)
     
     # prepare test data
-    startRangeTest = datetime.datetime(2022,6,24,0,0,0)
-    endRangeTest = datetime.datetime(2022,6,25,0,0,0)
+    startRangeTest = datetime.datetime(2022,6,22,0,0,0)
+    endRangeTest = datetime.datetime(2022,7,15,0,0,0)
     
     # update y_true for new time range
     testData, testPriceRelativeVectors = prepareData(startRangeTest, endRangeTest, markets, window)
@@ -225,4 +225,4 @@ if __name__ == '__main__':
         portfolioValue.append(
             portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVectors[i]), np.asarray(portfolioWeights[i-1])))
     
-    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest)
+    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)

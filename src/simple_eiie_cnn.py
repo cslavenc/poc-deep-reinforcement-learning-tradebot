@@ -136,7 +136,7 @@ if __name__ == '__main__':
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
-    data, priceRelativeVectors, _ = prepareData(startRange, endRange, markets, window)
+    data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
     # start portfolio simulation
     portfolio = Portfolio()
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     startRangeTest = datetime.datetime(2022,6,24,0,0,0)
     endRangeTest = datetime.datetime(2022,6,25,0,0,0)
     
-    testData, testPriceRelativeVector, _ = prepareData(startRangeTest, endRangeTest, markets, window)
+    testData, testPriceRelativeVector = prepareData(startRangeTest, endRangeTest, markets, window)
     
     # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
     logits = portfolio.model.predict(testData)

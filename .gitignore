@@ -1,6 +1,9 @@
 # custom
 .idea
+
+# ignore datasets
 *.csv
+cached_datasets
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
