@@ -176,7 +176,8 @@ class CustomModel(tf.keras.Model):
             # individualReward = -tf.math.log(tf.multiply(self.transactionRemainderFactor, tf.reduce_sum(multiplied, axis=0)))
             individualReward = -tf.math.log(tf.reduce_sum(multiplied, axis=0))
             rewardPerEpisode.append(individualReward)
-        averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)/len(rewardPerEpisode)
+        # averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)/len(rewardPerEpisode)
+        averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)
         return averageCumulatedReturn
 
 
@@ -214,29 +215,37 @@ class CustomModel(tf.keras.Model):
             
             for i in range(1, numOfMiniBatches-1):
                 # check if minibatch size is not too big and make it smaller if it does not fit the dataset
-                # TODO : is i+1 correct here or is it i+2 after all?....
                 if (i+1)*minibatchSize >= dataSize:
                     minibatchSize = (i+1)*minibatchSize - dataSize - 1
+                # minibatchSize for futurePortfolioWeights and transactionRemainderFactor
+                futureMinibatchSize = priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)].shape[0]
+                print(futureMinibatchSize)
                 
-                # TODO : comment on the t+1 timesteps logic and why there was an issue
+                # the predicted portfolio weights correspend to timestep t and not t-1 as in the paper
+                # this is because when saving the portfolio weights to the portfolioVectorMemory,
+                # tensorflow only sees the mere tf.Tensor, but not the operations that were needed to get the value
+                # the operations are crucial for tensorflow, because it cannot do backpropagation otherwise
+                # (tape.gradient() will not work because the loss would depend on a value
+                # from a past iteration where the operations are not available to GradientTape anymore)
+                # Therefore, the calculations have been shifted from t (paper) to t+1 (implementation)
                 with tf.GradientTape() as tape:
                     predictedPortfolioWeights = self([data[(i*minibatchSize):((i+1)*minibatchSize)],
                                                       # w_t-1, weights from previous minibatch
                                                       self.portfolioVectorMemory[i-1][0:minibatchSize]],
                                                      training=True)
-                    # TODO : think about/make sure, this is a good approximation for future portf weights...
+                    # get the portfolio weights at t+1. this is only an approximation,
+                    # since the current neural network weights are used to predict the future weights
+                    # actually, the gradient should be applied to update the neural network weights first
+                    # before predicting the future portfolio weights at t+1
                     futurePortfolioWeights = self([data[((i+1)*minibatchSize):((i+2)*minibatchSize)],
-                                                   predictedPortfolioWeights[0:((data[((i+1)*minibatchSize):((i+2)*minibatchSize)].shape[0]))]],
+                                                   predictedPortfolioWeights[0:futureMinibatchSize]],
                                                   training=True)
                     
-                    # at step t+1, because y_t+1 is used as well with portfolio weights w_t
+                    # at step t+1, because y_t+1 is used as well with portfolio weights w_t and w_t+1
                     self.transactionRemainderFactor = self.calculateTransactionRemainderFactor(
-                        # TODO : be sure to include the correct indices for these vars
-                        # TODO : shape0: (priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)].shape[0])
-                        # TODO : this is to ensure that the end of the of the future price relative vector matches the currently predicted values
                         priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)],
-                        predictedPortfolioWeights[0:(priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)].shape[0])],
-                        futurePortfolioWeights[0:(priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)].shape[0])])
+                        predictedPortfolioWeights[0:futureMinibatchSize],
+                        futurePortfolioWeights[0:futureMinibatchSize])
 
                     loss = self.compiled_loss(priceRelativeVectors[((i+1)*minibatchSize):((i+2)*minibatchSize)],
                                               predictedPortfolioWeights[0:minibatchSize],
@@ -298,11 +307,11 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,1,0,0,0)
+    startRange = datetime.datetime(2022,6,20,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
     markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
     
-    data, priceRelativeVectors, _ = prepareData(startRange, endRange, markets, window)
+    data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
     # start portfolio simulation
     portfolio = Portfolio()
@@ -322,10 +331,10 @@ if __name__ == '__main__':
     
     # prepare test data
     startRangeTest = datetime.datetime(2022,6,22,0,0,0)
-    endRangeTest = datetime.datetime(2022,7,15,0,0,0)
+    endRangeTest = datetime.datetime(2022,6,24,0,0,0)
     
     # update y_true for new time range
-    testData, testPriceRelativeVectors, _ = prepareData(startRangeTest, endRangeTest, markets, window)
+    testData, testPriceRelativeVectors = prepareData(startRangeTest, endRangeTest, markets, window)
     testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
     optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
     
