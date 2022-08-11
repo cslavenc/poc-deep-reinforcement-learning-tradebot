@@ -125,6 +125,13 @@ class CustomModel(tf.keras.Model):
     :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
     
     return: R, average logarithmic cumulated reward (negative value for gradient ASCENT)
+    
+    NOTE: In preliminary experiments, simply taking the sum of the individual returns
+          lead to better learning actually. Dividing by the length (1/t_f)
+          resulted into a slightly worse performance in some scenarios.
+          This can be somewhat specific based on the training samples and assets used
+          and could also be affected by the number of epochs - more epochs could
+          potentially better results again when averaging the sum of individual rewards.
     """
     def cumulatedReturn(self, currentPriceRelativeVector, prevPortfolioWeights):
         rewardPerEpisode = []
@@ -133,7 +140,7 @@ class CustomModel(tf.keras.Model):
             multiplied = tf.multiply(currentPriceRelativeVector[j], prevPortfolioWeights[j])
             individualReward = -tf.math.log(tf.reduce_sum(multiplied, axis=0))
             rewardPerEpisode.append(individualReward)
-        averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)/len(rewardPerEpisode)
+        averageCumulatedReturn = tf.math.reduce_sum(rewardPerEpisode)
         return averageCumulatedReturn
 
 
@@ -162,7 +169,7 @@ class CustomModel(tf.keras.Model):
         numOfMiniBatches = int(np.ceil(dataSize/minibatchSize))
         
         for epoch in range(epochs):
-            print("\nSTART OF EPOCH {}".format(epoch))
+            print("\nSTART OF EPOCH {}/{}".format(epoch, epochs-1))
             minibatchSize = originalMinibatchSize  # reset
             
             # reset and use optimal weights as default values
@@ -234,15 +241,15 @@ if __name__ == '__main__':
     K.set_image_data_format('channels_last')
     
     # define a few neural network specific variables
-    epochs = 1000
+    epochs = 300
     window = 50
     minibatchSize = 32
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,17,0,0,0)
+    startRange = datetime.datetime(2022,6,1,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
-    markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
+    markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m', 'ADAUSDT_15m', 'MATICUSDT_15m']
     
     data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
@@ -264,14 +271,14 @@ if __name__ == '__main__':
     
     # prepare test data
     startRangeTest = datetime.datetime(2022,6,22,0,0,0)
-    endRangeTest = datetime.datetime(2022,7,15,0,0,0)
+    endRangeTest = datetime.datetime(2022,8,10,0,0,0)
     
     # update y_true for new time range
     testData, testPriceRelativeVectors = prepareData(startRangeTest, endRangeTest, markets, window)
     testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
     optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
     
-    # # get logits which are used to obtain the portfolio weights with tf.nn.softmax(logits)
+    # get predicted portfolio weights
     portfolioWeights = portfolio.model.predict([testData, optimalTestWeights])
     
     # Calculate and visualize how the portfolio value changes over time

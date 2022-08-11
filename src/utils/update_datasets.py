@@ -54,6 +54,7 @@ if __name__ == '__main__':
         filenames = getFilenamesInDirectory(timeframe, 'datasets')
         
         for filename in filenames:
+            print('Updating for {}'.format(filename))
             market = filename.split('_')[0]
             rawData = pd.read_csv('datasets/'+filename)
             rawData = updateMarket(market, filename)

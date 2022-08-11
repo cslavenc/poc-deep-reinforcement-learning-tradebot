@@ -6,8 +6,12 @@ Created on Thu Jul  7 11:59:42 2022
 """
 
 import os
+import datetime
 import numpy as np
 import pandas as pd
+import pandas_ta as ta
+
+from sklearn.preprocessing import MinMaxScaler
 
 
 # helper function to get file names in a target directory
@@ -26,7 +30,7 @@ def getFilenamesInDirectory(contains, targetDirectory):
     return filenames
 
 
-# get raw data from binance
+# get raw data from binance csv files
 def getRawData(startRange, endRange, market):
     targetDirectory = 'datasets'
     filenames = getFilenamesInDirectory(market, targetDirectory)
@@ -42,25 +46,54 @@ def getRawData(startRange, endRange, market):
 
 
 # extract the features of interest
-def extractFeaturesFromRawData(data):
-    data = pd.DataFrame(data=[data['close'], data['high'], data['low']]).T
-    return data
+# TODO : maybe remove if statement and simplify to how it was before
+def extractFeaturesFromRawData(data, additional=False):
+    if additional:
+        # prepare bollinger bands data
+        length = 20
+        mamode = 'sma'
+        # TODO : fix NAN values
+        data.ta.bbands(close=data['close'],
+                       length=length,
+                       mamode=mamode,
+                       col_names=('bb_lower', 'bb_middle', 'bb_higher', 'bb_bandwidth', 'bb_percentage'),
+                       inplace=True,
+                       append=True)
+        return pd.DataFrame(data=[data['close'], data['high'], data['low'],
+                                  data['bb_lower'], data['bb_middle'], data['bb_higher']]).T
+    else:
+        return pd.DataFrame(data=[data['close'], data['high'], data['low']]).T
 
+# extract additional features
+def extractAdditionalFeaturesFromRawData(data):
+    return pd.DataFrame(data=data['transactions'])
 
 # format raw data into the right shape to be used as tensors later on
 def formatRawDataForInput(data, window):
-    data = extractFeaturesFromRawData(data)
+    priceData = extractFeaturesFromRawData(data)
+    additionalData = extractAdditionalFeaturesFromRawData(data)
     X_tensor = []             # formatted tensor X
     priceRelativeVector = []  # price relative vector
     
-    for i in range(window, len(data)):
+    # scale non-price data
+    scaler = MinMaxScaler()
+    scaler.fit(additionalData)
+    # TODO : potentially remove additionalStepData   
+    # additionalData = pd.DataFrame(data=scaler.transform(additionalData)).T
+    
+    for i in range(window+20, len(priceData)):
         stepData = []
-        for j in range(len(data.iloc[i])):
+        # additionalStepData = []
+        for j in range(len(priceData.iloc[i])):
             # normalize with close price
-            stepData.append([np.divide(data.iloc[k][j], data.iloc[i-1]['close']) for k in range(i-window, i)])
+            stepData.append([np.divide(priceData.iloc[k][j], priceData.iloc[i-1]['close']) for k in range(i-window, i)])
+ 
+        #     if j == 0:  # only do it once
+        #         additionalStepData = [additionalData.iloc[0][k] for k in range(i-window, i)]
+        # stepData.append(additionalStepData)
         X_tensor.append(stepData)
         # EQUATION 1: y_t = elementWiseDivision(v_t, v_t-1)  # without 1 at the beginning
-        priceRelativeVector.append(np.divide(data.iloc[i-1]['close'], data.iloc[i-2]['close']))
+        priceRelativeVector.append(np.divide(priceData.iloc[i-1]['close'], priceData.iloc[i-2]['close']))
     return X_tensor, priceRelativeVector
 
 
@@ -81,3 +114,16 @@ def prepareData(startRange, endRange, markets, window):
     data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
     priceRelativeVectors = np.transpose(priceRelativeVectors)
     return data, priceRelativeVectors
+
+
+# mainly for debugging
+if __name__ == '__main__':
+    window = 50
+    
+    # prepare train data
+    startRange = datetime.datetime(2022,6,17,0,0,0)
+    endRange = datetime.datetime(2022,6,22,0,0,0)
+    market = 'BTCUSDT'
+    
+    rawData = getRawData(startRange, endRange, market)
+    formatted, _ = formatRawDataForInput(rawData, window)

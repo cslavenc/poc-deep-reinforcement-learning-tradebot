@@ -73,7 +73,6 @@ class Portfolio():
         main = Concatenate(axis=1, name='cash_bias_concatenation_layer')([cashBiasExpanded, main])
 
         
-        # TODO : would it make sense to use a softmax layer here after all? since im not using CategoricalCrossentropy in the final version anymore...
         # NOTE: no need to apply softmax. Use logits, they are more numerically stable
         outputLogits = Flatten()(main)  # bring it into the right shape
         

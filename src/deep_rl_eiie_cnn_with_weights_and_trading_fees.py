@@ -307,9 +307,9 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,20,0,0,0)
+    startRange = datetime.datetime(2022,6,1,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
-    markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
+    markets = ['BUSDUSDT_30m', 'BTCUSDT_30m', 'ETHUSDT_30m', 'BNBUSDT_30m', 'ADAUSDT_30m', 'MATICUSDT_30m']
     
     data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
@@ -331,7 +331,7 @@ if __name__ == '__main__':
     
     # prepare test data
     startRangeTest = datetime.datetime(2022,6,22,0,0,0)
-    endRangeTest = datetime.datetime(2022,6,24,0,0,0)
+    endRangeTest = datetime.datetime(2022,8,10,0,0,0)
     
     # update y_true for new time range
     testData, testPriceRelativeVectors = prepareData(startRangeTest, endRangeTest, markets, window)

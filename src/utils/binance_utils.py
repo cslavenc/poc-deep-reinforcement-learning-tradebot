@@ -22,6 +22,8 @@ def getTimeInterval(tick_interval):
         return baseInMilliseconds // 6
     elif tick_interval == '1h':
         return baseInMilliseconds // 24
+    elif tick_interval == '30m':
+        return baseInMilliseconds // (24*2)
     elif tick_interval == '15m':
         return baseInMilliseconds // (24*4)
     elif tick_interval == '5m':
