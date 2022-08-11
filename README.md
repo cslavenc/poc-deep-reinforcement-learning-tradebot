@@ -1,5 +1,18 @@
 # poc-deep-reinforcement-learning-tradebot
 A custom implementation of the paper [**A Deep Reinforcement Learning Framework for the Financial Portfolio Management Problem**](https://arxiv.org/pdf/1706.10059.pdf).  
+  
+Keep in mind that the original paper was published in 2017. The markets has matured quite
+a lot since then. In particular, the trade volume and the total market cap is much higher
+for assets like BTC, ETH, ADA etc. The original paper only considered those coins with a high market cap.
+They would dynamically determine which assets have a high market cap and adapt what assets to trade. 
+Back in these days, this was quite necessary in order to guarantee sufficient liquidity. 
+Nowadays, there are assets like BTC, ETH, ADA etc. who always have a really high liquidity, so this was not necessary. 
+At the same, these assets do not tend to experience sudden, strong pumps as some microcaps.
+This has to be taken into account when evaluating the performance of a neural network as the original authors 
+likely chose microcaps dynamically (which have more upside potential temporarily), while 
+the current implementation only considers well-established crypto assets who typically do not tend 
+to experience sudden pumps like microcaps.  
+
 This project implements the EIIE CNN at different levels of abstraction:
 
 - `simple_eiie_cnn.py` implements the basic EIIE CNN without adding any weights or biases (figure 2, page 11) or the reinforcement environment.
@@ -36,6 +49,10 @@ Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU
 ## NOTES
 Preliminary results have shown that **ignoring to divide by the size of the individual rewards list**
 leads to basically the same results, but upside seems to have more potential.  
+
+**Feature Engineering**:
+- in preliminary experiments, using volume did not seem to really improve learning
+- moreover, using the middle, higher, lower Bollinger Bands also did not improve learning
 
 **Flakiness**:
 - Sometimes, the loss gets stuck at the same value from the very beginning.
