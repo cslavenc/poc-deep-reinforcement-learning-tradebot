@@ -23,18 +23,20 @@ This effectively enables the RL environment, since that function is maximized in
 However, it does not include trading fees currently nor does it choose the minibatches based on a geometric distribution.
 Moreover, the cash bias that is concatenated in the neural network is not present as it
 still uses **BUSDUSDT** as an asset to simulate cash.
-- eiie_cnn_with_weights_and_cash_bias.py does not perform so well, since it tries to learn the argmax function basically,
+- `eiie_cnn_with_weights_and_cash_bias.py` does not perform so well, since it tries to learn the argmax function basically,
 but the concatenated cash bias is a big hindrance to that.  
 This is not so grave, since this file was an initial POC for the deep RL EIIE CNN.
-- `deep_rl_ eiie_cnn_with_weights_and_cash_bias.py`: preliminary results have shown that concatenating a cash bias on the level of logits
+- `deep_rl_eiie_cnn_with_weights_and_cash_bias.py`: preliminary results have shown that concatenating a cash bias on the level of logits
 leads to very bad results. In fact, it seems to prefer cash over assets most of the time.
 From a mathematical perspective, the cash bias was chosen to be 1. and when applying the softmax
 function with the other logits, it usually allocates the entire portfolio in cash.  
 Since logits can be many magnitudes of order bigger than 1. or negative even, the cash bias
 seems like a strange outlier and thus, softmaxing with this artificial cash bias leads to
-unusable weights (weight 1 almost always in cash bias, while others are basically 0)
+unusable weights (weight 1 almost always in cash bias, while others are basically 0)  
 -`deep_rl_eiie_cnn_with_weights_and_trading_fees.py` did not show an improvement in preliminary test trials.  
-In fact, it performed worse and it was not able to avoid larger drops. Qualitatively, the graph looked similar to the version without trading fees.
+In fact, it performed worse and it was not able to avoid larger drops. Qualitatively, the graph looked similar to the version without trading fees.  
+- `deep_rl_eiie_cnn_with_weights_online_training.py` implements online training functionality.
+In preliminary experiments, a small improvement could be observed. Also, tuning the hyperparameters (online epochs and window size) is crucial.  
 - TODO
 
 
@@ -88,3 +90,7 @@ within the same loop/GradientTape.
 
 **Starting weights w_0**:
 - optimal weights as starting weights during minibatches seem to work better than using weights, where everything is in cash initially
+
+**15mins timeframe VS 30mins timeframe**:
+- the paper uses a 30mins timeframe. When choosing a large train dataset (around 6 weeks) it has a reasonably good performance.
+In the end, it still underperformed the 15mins timeframe in initial experiments.
