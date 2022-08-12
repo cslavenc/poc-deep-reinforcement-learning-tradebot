@@ -209,7 +209,6 @@ class CustomModel(tf.keras.Model):
                 # reset for the next minibatch
                 self.rewardPerEpisode = []
                 
-            # loss tracker and accuracy printer might be nice, but it costs more computational power so maybe just ignore it
             print('Current loss: {}'.format(np.mean(lossTracker)))
             self.compiled_metrics.reset_state()
             self.portfolioVectorMemory = []  # reset for the next epoch
@@ -257,7 +256,6 @@ if __name__ == '__main__':
     portfolio = Portfolio()
     portfolio.createEiieCnnWithWeights(data, priceRelativeVectors)
     
-    # with the simulated y_true (optimalWeights), categorical crossentropy loss makes the most sense
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     portfolio.model.compile(optimizer=optimizer,
                             run_eagerly=True,
@@ -273,7 +271,6 @@ if __name__ == '__main__':
     startRangeTest = datetime.datetime(2022,6,22,0,0,0)
     endRangeTest = datetime.datetime(2022,8,10,0,0,0)
     
-    # update y_true for new time range
     testData, testPriceRelativeVectors = prepareData(startRangeTest, endRangeTest, markets, window)
     testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
     optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)

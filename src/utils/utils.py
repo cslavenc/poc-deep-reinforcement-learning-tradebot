@@ -46,23 +46,8 @@ def getRawData(startRange, endRange, market):
 
 
 # extract the features of interest
-# TODO : maybe remove if statement and simplify to how it was before
-def extractFeaturesFromRawData(data, additional=False):
-    if additional:
-        # prepare bollinger bands data
-        length = 20
-        mamode = 'sma'
-        # TODO : fix NAN values
-        data.ta.bbands(close=data['close'],
-                       length=length,
-                       mamode=mamode,
-                       col_names=('bb_lower', 'bb_middle', 'bb_higher', 'bb_bandwidth', 'bb_percentage'),
-                       inplace=True,
-                       append=True)
-        return pd.DataFrame(data=[data['close'], data['high'], data['low'],
-                                  data['bb_lower'], data['bb_middle'], data['bb_higher']]).T
-    else:
-        return pd.DataFrame(data=[data['close'], data['high'], data['low']]).T
+def extractFeaturesFromRawData(data):
+    return pd.DataFrame(data=[data['close'], data['high'], data['low']]).T
 
 # extract additional features
 def extractAdditionalFeaturesFromRawData(data):
@@ -78,19 +63,13 @@ def formatRawDataForInput(data, window):
     # scale non-price data
     scaler = MinMaxScaler()
     scaler.fit(additionalData)
-    # TODO : potentially remove additionalStepData   
-    # additionalData = pd.DataFrame(data=scaler.transform(additionalData)).T
     
     for i in range(window+20, len(priceData)):
         stepData = []
-        # additionalStepData = []
         for j in range(len(priceData.iloc[i])):
             # normalize with close price
             stepData.append([np.divide(priceData.iloc[k][j], priceData.iloc[i-1]['close']) for k in range(i-window, i)])
  
-        #     if j == 0:  # only do it once
-        #         additionalStepData = [additionalData.iloc[0][k] for k in range(i-window, i)]
-        # stepData.append(additionalStepData)
         X_tensor.append(stepData)
         # EQUATION 1: y_t = elementWiseDivision(v_t, v_t-1)  # without 1 at the beginning
         priceRelativeVector.append(np.divide(priceData.iloc[i-1]['close'], priceData.iloc[i-2]['close']))
