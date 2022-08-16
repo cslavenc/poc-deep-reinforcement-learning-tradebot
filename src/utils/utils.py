@@ -10,8 +10,13 @@ import datetime
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
+import tensorflow as tf
 
 from sklearn.preprocessing import MinMaxScaler
+
+# helper function to verify if there are available GPU devices
+def isGpuAvailable():
+    return tf.config.list_physical_devices('GPU') != []
 
 # helper function to get file names in a target directory
 def getFilenamesInDirectory(contains, targetDirectory):
@@ -55,30 +60,27 @@ def extractAdditionalFeaturesFromRawData(data):
 # format raw data into the right shape to be used as tensors later on
 def formatRawDataForInput(data, window):
     priceData = extractFeaturesFromRawData(data)
-    additionalData = extractAdditionalFeaturesFromRawData(data)
     X_tensor = []             # formatted tensor X
     priceRelativeVector = []  # price relative vector
-    
-    # scale non-price data
-    scaler = MinMaxScaler()
-    scaler.fit(additionalData)
     
     for i in range(window+20, len(priceData)):
         stepData = []
         for j in range(len(priceData.iloc[i])):
             # normalize with close price
             stepData.append([np.divide(priceData.iloc[k][j], priceData.iloc[i-1]['close']) for k in range(i-window, i)])
- 
         X_tensor.append(stepData)
         # EQUATION 1: y_t = elementWiseDivision(v_t, v_t-1)  # without 1 at the beginning
         priceRelativeVector.append(np.divide(priceData.iloc[i-1]['close'], priceData.iloc[i-2]['close']))
     return X_tensor, priceRelativeVector
 
 
+# TODO : add GPU support
 # wrapper function to return the finalized data to be used in neural networks
 def prepareData(startRange, endRange, markets, window):
     # final shape CPU mode: timesteps x markets x lookback x features, features = channels = (close, high, low, ...)
+    # final shape GPU mode: timesteps x features x markets x lookback
     data = []
+    
     # EQUATION 1: y_t = (v_0,t/v_0,t-1 | v_BTC,t/v_BTC,t-1 | ... | v_ADA,t/v_ADA,t-1), with v_0 = 1 for all t (v_0 is the cash)
     priceRelativeVectors = []
     
@@ -88,9 +90,11 @@ def prepareData(startRange, endRange, markets, window):
         data.append(formattedData)
         priceRelativeVectors.append(priceRelativeVector)
     
+    # TODO : do gpu support here
     # get them into the right shape
     data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
     priceRelativeVectors = np.transpose(priceRelativeVectors)
+    
     return data, priceRelativeVectors
 
 

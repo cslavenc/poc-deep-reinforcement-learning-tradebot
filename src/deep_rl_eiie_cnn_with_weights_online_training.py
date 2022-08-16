@@ -12,14 +12,20 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
-from utils.utils import prepareData
+from utils.utils import prepareData, isGpuAvailable
 from utils.plot_utils import plotPortfolioValueChange
 
 
 def expandDimensions(weights):
-    # CPU mode None x 4 x 1 x 1: add a new axis at the end of the tensor
-    expandedWeights = tf.expand_dims(weights, axis=-1)
-    expandedWeights = tf.expand_dims(expandedWeights, axis=-1)
+    if isGpuAvailable():
+        # GPU mode None x 1 x 1 x 4
+        expandedWeights = tf.expand_dims(weights, axis=1)
+        expandedWeights = tf.expand_dims(expandedWeights, axis=1)
+    else:
+        # CPU mode None x 4 x 1 x 1: add a new axis at the end of the tensor
+        expandedWeights = tf.expand_dims(weights, axis=-1)
+        expandedWeights = tf.expand_dims(expandedWeights, axis=-1)
+    
     return expandedWeights
 
 class Portfolio():
@@ -50,20 +56,32 @@ class Portfolio():
           if it is present in the input data (often simulated as BUSDUSDT)
     """
     def createEiieCnnWithWeights(self, X_tensor, weights):
+        if isGpuAvailable():
+            axisConcatenateWeightsLayer = 1
+            kernelSizeFirstConvolution = (3, 1)
+            kernelSizeSecondConvolution = (48, 1)
+        else:  # use these variables for CPU mode
+            axisConcatenateWeightsLayer = 3
+            kernelSizeFirstConvolution = (1, 3)
+            kernelSizeSecondConvolution = (1, 48)
+        
         mainInputShape = np.shape(X_tensor)[1:]
         weightsInputShape = np.shape(weights)[1:]
         
         # prefer functional API for its flexibility for future model extensions
         mainInputLayer = Input(shape=mainInputShape, name='main_input_layer')
-        main = Conv2D(filters=2, kernel_size=(1, 3), activation='relu', name='first_conv_layer')(mainInputLayer)
-        main = Conv2D(filters=20, kernel_size=(1, 48), activation='relu', name='second_conv_layer')(main)
+        main = Conv2D(filters=2, kernel_size=kernelSizeFirstConvolution,
+                      activation='relu', name='first_conv_layer')(mainInputLayer)
+        main = Conv2D(filters=20, kernel_size=kernelSizeSecondConvolution,
+                      activation='relu', name='second_conv_layer')(main)
         
         # create layers for input weights
         weightsInputLayer = Input(shape=weightsInputShape, name='weights_input_layer')
         weightsExpanded = Lambda(expandDimensions, name='weights_expansion_layer')(weightsInputLayer)
         
         # Concatenate the weightsLayer to the mainLayer
-        main = Concatenate(axis=3, name='weights_concatenation_layer')([main, weightsExpanded])
+        main = Concatenate(axis=axisConcatenateWeightsLayer,
+                           name='weights_concatenation_layer')([main, weightsExpanded])
         
         main = Conv2D(filters=1, kernel_size=(1, 1), name='final_conv_layer')(main)
         outputLogits = Flatten()(main)  # bring it into the right shape
@@ -257,12 +275,12 @@ def updateOnlineTrainData(data, testData):
     return data
 
 if __name__ == '__main__':
-    if tf.config.list_physical_devices('GPU') == []:
-        # enforce CPU mode (for GPU mode, set 'channels_first' and modify tensor shapes accordingly)
-        K.set_image_data_format('channels_last')
-    else:
+    if isGpuAvailable():
         # activate GPU mode
         K.set_image_data_format('channels_first')
+    else:
+        # enforce CPU mode (for GPU mode, set 'channels_first' and modify tensor shapes accordingly)
+        K.set_image_data_format('channels_last')
     
     # define a few neural network specific variables
     epochs = 300
