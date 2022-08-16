@@ -134,7 +134,7 @@ if __name__ == '__main__':
     # prepare train data
     startRange = datetime.datetime(2022,6,17,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
-    markets = ['BUSDUSDT', 'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'MATICUSDT']
+    markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m', 'ADAUSDT_15m', 'MATICUSDT_15m']
     
     data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
@@ -153,8 +153,8 @@ if __name__ == '__main__':
     portfolio.model.fit(x=data, y=optimalWeights, epochs=epochs)
     
     # prepare test data
-    startRangeTest = datetime.datetime(2022,6,24,0,0,0)
-    endRangeTest = datetime.datetime(2022,6,25,0,0,0)
+    startRangeTest = datetime.datetime(2022,6,22,0,0,0)
+    endRangeTest = datetime.datetime(2022,8,10,0,0,0)
     
     testData, testPriceRelativeVector = prepareData(startRangeTest, endRangeTest, markets, window)
     
@@ -168,4 +168,4 @@ if __name__ == '__main__':
         portfolioValue.append(
             portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVector[i]), np.asarray(portfolioWeights[i-1])))
     
-    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest)
+    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)

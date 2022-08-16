@@ -13,7 +13,6 @@ import pandas_ta as ta
 
 from sklearn.preprocessing import MinMaxScaler
 
-
 # helper function to get file names in a target directory
 def getFilenamesInDirectory(contains, targetDirectory):
     # get list with all datasets in directory

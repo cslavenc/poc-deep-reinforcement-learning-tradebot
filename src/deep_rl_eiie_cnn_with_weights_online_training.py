@@ -112,6 +112,7 @@ NOTE: keep in mind that the portfolio vector memory for a minibatch has shape
 """
 class CustomModel(tf.keras.Model):
     portfolioVectorMemory = []
+    rateOfReturnMemory = []
     
     """
     EQUATION 22: R = 1/t_f * sum(r_t, start=1, end=t_f+1)
@@ -135,19 +136,24 @@ class CustomModel(tf.keras.Model):
     """
     def cumulatedReturn(self, currentPriceRelativeVector, prevPortfolioWeights):
         rewardPerMinibatch = []
+        rateOfReturnPerMinibatch = []
         
         for j in range(currentPriceRelativeVector.shape[0]):
             portfolioValuePerMinibatch = tf.multiply(currentPriceRelativeVector[j], prevPortfolioWeights[j])
+            individualRateOfReturn = tf.reduce_sum(portfolioValuePerMinibatch, axis=0) 
             individualReward = -tf.math.log(tf.reduce_sum(portfolioValuePerMinibatch, axis=0))
+            individualReward = tf.multiply(individualReward, individualRateOfReturn)
             rewardPerMinibatch.append(individualReward)
+            rateOfReturnPerMinibatch.append(individualRateOfReturn)
         averageCumulatedReturn = tf.math.reduce_sum(rewardPerMinibatch)
+        self.rateOfReturnMemory.append(tf.math.reduce_sum(rateOfReturnPerMinibatch)/len(rateOfReturnPerMinibatch))
         return averageCumulatedReturn
 
 
     """
     Implementation of the custom training loop from scratch.
-    This is necessary, since we need the intermediate weights as well which
-    are used as the additional inputs in the EIIE CNN.
+    This is necessary, because the intermediate weights are used as 
+    additional inputs in the EIIE CNN.
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch#using_the_gradienttape_a_first_end-to-end_example    
     
     :param data, the full training data
@@ -224,7 +230,7 @@ In itself, this does not need to be a bad thing though.
 
 :param priceRelativeVectors, first entry should be the cash (if applicable)
 
-returns: priceRelativeVectors, which the first entry slightly modified
+returns: priceRelativeVectors, with the first entry slightly modified
 """
 def sanitizeCashValues(priceRelativeVectors):
     smallCashBias = 0.000001
@@ -251,8 +257,12 @@ def updateOnlineTrainData(data, testData):
     return data
 
 if __name__ == '__main__':
-    # enforce CPU mode (for GPU mode, set 'channels_first' and modify tensor shapes accordingly)
-    K.set_image_data_format('channels_last')
+    if tf.config.list_physical_devices('GPU') == []:
+        # enforce CPU mode (for GPU mode, set 'channels_first' and modify tensor shapes accordingly)
+        K.set_image_data_format('channels_last')
+    else:
+        # activate GPU mode
+        K.set_image_data_format('channels_first')
     
     # define a few neural network specific variables
     epochs = 300
@@ -304,7 +314,7 @@ if __name__ == '__main__':
         currentOptimalTestWeights = optimalTestWeights[(i*window*5):((i+1)*window*5)]
         currentTestPriceRelativeVectors = testPriceRelativeVectors[(i*window*5):((i+1)*window*5)]
         currentPortfolioWeights = portfolio.model.predict([currentTestData, 
-                                                           currentOptimalTestWeights])
+                                                            currentOptimalTestWeights])
         if np.size(portfolioWeights) == 0:
             portfolioWeights = currentPortfolioWeights
         else:
@@ -313,7 +323,7 @@ if __name__ == '__main__':
         # update train data
         onlineTrainData = updateOnlineTrainData(onlineTrainData, currentTestData)
         onlinePriceRelativeVectors = updateOnlineTrainData(onlinePriceRelativeVectors, 
-                                                           currentTestPriceRelativeVectors)
+                                                            currentTestPriceRelativeVectors)
         onlineOptimalWeights = updateOnlineTrainData(onlineOptimalWeights, currentOptimalTestWeights)
         
         # perform online training
@@ -322,7 +332,7 @@ if __name__ == '__main__':
     
     # Calculate and visualize how the portfolio value changes over time
     portfolioValue = [10000.]
-    for i in range(1,len(testPriceRelativeVectors)):
+    for i in range(1, len(testPriceRelativeVectors)):
         portfolioValue.append(
             portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1], np.asarray(testPriceRelativeVectors[i]), np.asarray(portfolioWeights[i-1])))
     
