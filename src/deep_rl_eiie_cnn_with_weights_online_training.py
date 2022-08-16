@@ -158,13 +158,14 @@ class CustomModel(tf.keras.Model):
         
         for j in range(currentPriceRelativeVector.shape[0]):
             portfolioValuePerMinibatch = tf.multiply(currentPriceRelativeVector[j], prevPortfolioWeights[j])
-            individualRateOfReturn = tf.reduce_sum(portfolioValuePerMinibatch, axis=0) 
+            individualRateOfReturn = tf.reduce_sum(portfolioValuePerMinibatch, axis=0)  # -1
             individualReward = -tf.math.log(tf.reduce_sum(portfolioValuePerMinibatch, axis=0))
-            individualReward = tf.multiply(individualReward, individualRateOfReturn)
+            if individualRateOfReturn < 1:
+                individualReward = tf.multiply(individualReward, individualRateOfReturn)
             rewardPerMinibatch.append(individualReward)
-            rateOfReturnPerMinibatch.append(individualRateOfReturn)
+            # rateOfReturnPerMinibatch.append(individualRateOfReturn)
         averageCumulatedReturn = tf.math.reduce_sum(rewardPerMinibatch)
-        self.rateOfReturnMemory.append(tf.math.reduce_sum(rateOfReturnPerMinibatch)/len(rateOfReturnPerMinibatch))
+        # self.rateOfReturnMemory.append(tf.math.reduce_sum(rateOfReturnPerMinibatch)/len(rateOfReturnPerMinibatch))
         return averageCumulatedReturn
 
 
