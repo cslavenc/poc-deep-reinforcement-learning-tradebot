@@ -9,10 +9,8 @@ import os
 import datetime
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
 import tensorflow as tf
 
-from sklearn.preprocessing import MinMaxScaler
 
 # helper function to verify if there are available GPU devices
 def isGpuAvailable():
@@ -74,11 +72,10 @@ def formatRawDataForInput(data, window):
     return X_tensor, priceRelativeVector
 
 
-# TODO : add GPU support
 # wrapper function to return the finalized data to be used in neural networks
-def prepareData(startRange, endRange, markets, window):
+def prepareData(startRange, endRange, markets, window, gpu=False):
     # final shape CPU mode: timesteps x markets x lookback x features, features = channels = (close, high, low, ...)
-    # final shape GPU mode: timesteps x features x markets x lookback
+    # final shape GPU mode: timesteps x features x lookback x markets
     data = []
     
     # EQUATION 1: y_t = (v_0,t/v_0,t-1 | v_BTC,t/v_BTC,t-1 | ... | v_ADA,t/v_ADA,t-1), with v_0 = 1 for all t (v_0 is the cash)
@@ -90,9 +87,11 @@ def prepareData(startRange, endRange, markets, window):
         data.append(formattedData)
         priceRelativeVectors.append(priceRelativeVector)
     
-    # TODO : do gpu support here
     # get them into the right shape
-    data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
+    if gpu:
+        data = np.swapaxes(np.swapaxes(np.swapaxes(data, 2, 3), 0, 1), 1, 3)
+    else:
+        data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
     priceRelativeVectors = np.transpose(priceRelativeVectors)
     
     return data, priceRelativeVectors

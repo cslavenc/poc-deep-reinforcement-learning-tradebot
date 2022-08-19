@@ -1,11 +1,11 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Aug 11 14:05:19 2022
+Created on Fri Aug 19 09:37:23 2022
 
 @author: slaven
 """
 
-import os
 import datetime
 import numpy as np
 
@@ -13,14 +13,18 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
-from utils.utils import prepareData
+from utils.utils import prepareData, isGpuAvailable
 from utils.plot_utils import plotPortfolioValueChange
-import time  # TODO : remove timing
 
 def expandDimensions(weights):
-    # CPU mode None x 4 x 1 x 1: add a new axis at the end of the tensor
-    expandedWeights = tf.expand_dims(weights, axis=-1)
-    expandedWeights = tf.expand_dims(expandedWeights, axis=-1)
+    if isGpuAvailable():
+        # GPU mode None x 1 x 1 x 4
+        expandedWeights = tf.expand_dims(weights, axis=1)
+        expandedWeights = tf.expand_dims(expandedWeights, axis=1)
+    else:
+        # CPU mode None x 4 x 1 x 1: add a new axis at the end of the tensor
+        expandedWeights = tf.expand_dims(weights, axis=-1)
+        expandedWeights = tf.expand_dims(expandedWeights, axis=-1)
     
     return expandedWeights
 
@@ -52,14 +56,23 @@ class Portfolio():
           if it is present in the input data (often simulated as BUSDUSDT)
     """
     def createEiieCnnWithWeights(self, X_tensor, weights):
+        if isGpuAvailable():
+            axisConcatenateWeightsLayer = 1
+            kernelSizeFirstConvolution = (3, 1)
+            kernelSizeSecondConvolution = (48, 1)
+        else:  # use these variables for CPU mode
+            axisConcatenateWeightsLayer = 3
+            kernelSizeFirstConvolution = (1, 3)
+            kernelSizeSecondConvolution = (1, 48)
+        
         mainInputShape = np.shape(X_tensor)[1:]
         weightsInputShape = np.shape(weights)[1:]
         
         # prefer functional API for its flexibility for future model extensions
         mainInputLayer = Input(shape=mainInputShape, name='main_input_layer')
-        main = Conv2D(filters=2, kernel_size=(1, 3),
+        main = Conv2D(filters=2, kernel_size=kernelSizeFirstConvolution,
                       activation='relu', name='first_conv_layer')(mainInputLayer)
-        main = Conv2D(filters=20, kernel_size=(1, 48),
+        main = Conv2D(filters=20, kernel_size=kernelSizeSecondConvolution,
                       activation='relu', name='second_conv_layer')(main)
         
         # create layers for input weights
@@ -67,7 +80,7 @@ class Portfolio():
         weightsExpanded = Lambda(expandDimensions, name='weights_expansion_layer')(weightsInputLayer)
         
         # Concatenate the weightsLayer to the mainLayer
-        main = Concatenate(axis=3,
+        main = Concatenate(axis=axisConcatenateWeightsLayer,
                            name='weights_concatenation_layer')([main, weightsExpanded])
         
         main = Conv2D(filters=1, kernel_size=(1, 1), name='final_conv_layer')(main)
@@ -260,9 +273,15 @@ def updateOnlineTrainData(data, testData):
 
 
 if __name__ == '__main__':
-    # enforce CPU mode
-    K.set_image_data_format('channels_last')
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
+    if isGpuAvailable():
+        # activate GPU mode
+        print('INFO: GPU is available.')
+        K.set_image_data_format('channels_first')
+    else:
+        # enforce CPU mode
+        import os
+        K.set_image_data_format('channels_last')
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
     
     # define a few neural network specific variables
     epochs = 300
@@ -275,7 +294,6 @@ if __name__ == '__main__':
     endRange = datetime.datetime(2021,1,14,0,0,0)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m', 'ADAUSDT_15m', 'MATICUSDT_15m']
     
-    starttime = time.time()
     data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
     # start portfolio simulation
@@ -292,9 +310,6 @@ if __name__ == '__main__':
     priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.train(data, optimalWeights, priceRelativeVectors, minibatchSize, epochs)
-    
-    traintime = time.time()
-    print('TRAINING TIME: {}'.format(traintime - starttime))
     
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
@@ -354,9 +369,6 @@ if __name__ == '__main__':
         currentUpperRangeTest += datetime.timedelta(weeks=weeksIncrement)
         if currentUpperRangeTest > endRangeTest:
             currentUpperRangeTest = endRangeTest  # ensure data is not out of bounds
-    
-    
-    print('Final duration: {}'.format(time.time() - starttime))
     
     # Calculate and visualize how the portfolio value changes over time
     portfolioValue = [10000.]

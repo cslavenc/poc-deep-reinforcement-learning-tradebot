@@ -37,14 +37,32 @@ unusable weights (weight 1 almost always in cash bias, while others are basicall
 In fact, it performed worse and it was not able to avoid larger drops. Qualitatively, the graph looked similar to the version without trading fees.  
 - `deep_rl_eiie_cnn_with_weights_online_training.py` implements online training functionality.
 In preliminary experiments, a small improvement could be observed. Also, tuning the hyperparameters (online epochs and window size) is crucial.  
+- `deep_rl_eiie_cnn_with_weights_online_training_gpu.py` implements the GPU accelerated version.   
+Keep in mind that it only activates a GPU and updates the shapes in the neural network. 
+Further work is necessary: the train and loss function need to be annotated with `@tf.function` 
+and the for-loops have to be translated into a tf.while_loop and no list.append() calls are allowed. 
+list.append() calls should be replaced with `tf.TensorArray()`. Moreover, all variables should be wrapped either with `tf.constant()` or `tf.Variable`.  
+These graph optimizations will leverage to full power of a GPU. On the other hand, 
+the improved performance might not be as high, since data still has to be copied from CPU to GPU and back to CPU, which adds a considerable overhead.
 - TODO
 
 
 ## GET STARTED
-- first, run `generate_data_for_trading_pair.py` and make sure to have the folder `src/datasets`. Feel free to delete the placeholder file `.empty`.  
+### INSTALLATION
+- tensorflow=2.9.1
+  - cudatoolkit=11.2
+  - cudnn=8.1.0
+- pandas-ta=0.3.14
+- cupy-cuda11x
+
+GPU tests were performed on NVIDIA® GeForce® RTX 2060 SUPER:  
+NVIDIA-SMI 515.65.01    Driver Version: 515.65.01    CUDA Version: 11.7
+
+### RUNNING THE SIMULATION
+- First, run `generate_data_for_trading_pair.py` and make sure to have the folder `src/datasets`. Feel free to delete the placeholder file `.empty`.  
 This creates the csv files that are used for static backtesting throughout this project.
 - then, run a neural network file of your choice for analysis. Note that depending which neural network you are running, they might implement only
-some aspects of the actual neural network in the paper as well as evaluate the data differently.
+some aspects of the actual neural network in the paper as well as evaluate the data differently.  
 
 Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU mode where the support has been implemented.
 
@@ -64,6 +82,17 @@ and running the file in a new one helps. The `nan` value used to occur when usin
 values for the custom loss function. Using the corresponding weights did not lead to that problem anymore. 
 This is probably due to things being cached in the background and after changes are made
 tensorflow becomes confused.  
+
+**CuPy vs numpy**:
+- initial trials showed a decline in performance when generating the dataset (X_tensor) when using `cupy` probably due to the GPU overhead.
+- `cupy` is essentially the GPU version of `numpy`. It still has some pecularities about it though...
+- normally, `import cupy as np` is preferred as the API is basically the same as numpy.
+- `cupy` requires cupy arrays instead of lists though. Thus: if myList is a python list, 
+numpy usually has no trouble with it. On the other hand, cupy requires a conversion 
+(myList = cupy.asarray(myList)) to perform other operations such as swapaxes etc.
+- `cupy` and `numpy` can often interfere with each other. It was only meant to speedup 
+data preparation time. If in doubt, simply use `numpy`.
+
 
 **tf.float32/64**:
 - there are some issues around tf.float64, so tf.float32 has been used instead where applicable
@@ -89,8 +118,9 @@ within the same loop/GradientTape.
 - it seems that using cash as another asset (can be simulated as **BUSDUSDT** for example) gives much more meaningful weight distributions
 
 **Starting weights w_0**:
-- optimal weights as starting weights during minibatches seem to work better than using weights, where everything is in cash initially
+- optimal weights as starting weights during minibatches seem to work better than using weights, 
+where everything is in cash initially
 
 **15mins timeframe VS 30mins timeframe**:
-- the paper uses a 30mins timeframe. When choosing a large train dataset (around 6 weeks) it has a reasonably good performance.
+- The paper uses a 30mins timeframe. When choosing a large train dataset (around 6 weeks) it has a reasonably good performance.
 In the end, it still underperformed the 15mins timeframe in initial experiments.
