@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Aug 11 14:05:19 2022
+Created on Mon Aug 22 16:35:36 2022
 
 @author: slaven
 """
@@ -8,12 +9,14 @@ Created on Thu Aug 11 14:05:19 2022
 import os
 import datetime
 import numpy as np
+import pandas as pd
+import pandas_ta as ta
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
-from utils.utils import prepareData
+from utils.utils import prepareData, analyzeLargeDownside, prepareBTCMiddleBBands
 from utils.plot_utils import plotPortfolioValueChange
 import time  # TODO : remove timing
 
@@ -271,8 +274,8 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,1,0,0,0)
-    endRange = datetime.datetime(2022,6,22,0,0,0)
+    startRange = datetime.datetime(2021,11,5,0,0,0)
+    endRange = datetime.datetime(2021,11,26,0,0,0)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
     
@@ -297,6 +300,12 @@ if __name__ == '__main__':
     traintime = time.time()
     print('TRAINING TIME: {}'.format(traintime - starttime))
     
+    # prepare BTC middle bollinger bands data for custom safety mechanisms
+    btcMiddleBBands = prepareBTCMiddleBBands()
+    
+    # get static tradestop signals
+    btcData = pd.read_csv('datasets/BTCUSDT_15m_binance.csv')
+    
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
     onlineTrainData = data
@@ -305,11 +314,16 @@ if __name__ == '__main__':
     onlineEpochs = 10
     
     weeksIncrement = 6
-    startRangeTest = datetime.datetime(2022,6,22,0,0,0)
+    startRangeTest = datetime.datetime(2021,11,26,0,0,0)
     endRangeTest = datetime.datetime(2022,8,22,0,0,0)
     currentLowerRangeTest = startRangeTest
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
     testPriceRelativeVectorsFull = []
+    
+    # define variables for custom safety mechanism
+    fifteenMinsInOneDay = 4*24
+    lookbackBollingerBands = 20
+    lookbackDownside = 6
     
     # always use N weeks test data for predictions to reduce computation time
     # during long periods when testing
@@ -319,6 +333,14 @@ if __name__ == '__main__':
         print('\nCurrent time interval: {} to {}'.format(
             currentLowerRangeTest.strftime('%Y-%m-%d'),
             currentUpperRangeTest.strftime('%Y-%m-%d')))
+        
+        # calculate middle Bollinger Band at time t for custom safety measures
+        startIdxForBTC = btcData.loc[btcData['date'] == currentLowerRangeTest.strftime('%Y-%m-%d %H:%M:%S')].index.tolist()[0]
+        endIdxForBTC = btcData.loc[btcData['date'] == currentUpperRangeTest.strftime('%Y-%m-%d %H:%M:%S')].index.tolist()[0]
+        currentBTCData = btcData.iloc[(startIdxForBTC-lookbackDownside):endIdxForBTC]
+        tradestopSignals = analyzeLargeDownside(currentBTCData['close']/currentBTCData['open'])
+        tradestopIdx = [signal[0] - startIdxForBTC + len(portfolioWeights) for signal in tradestopSignals]
+        print('Identified the following tradestops at: {}'.format(tradestopIdx))
         
         # prepare test data
         testData, testPriceRelativeVectors = prepareData(currentLowerRangeTest, currentUpperRangeTest, markets, window)
@@ -330,6 +352,8 @@ if __name__ == '__main__':
         
         for i in range(int(np.ceil(testData.shape[0]/(window*5)))):
             print('\nTRAIN STEP: {}/{}'.format(i, int(np.ceil(testData.shape[0]/(window*5))-1)))
+            # btcMiddleBB = ta.sma(btcData.iloc[(-startIdxForMiddleBB-lookbackDownside):startIdxForMiddleBB],
+            #                      length=lookbackDownside).iloc[-1]
             
             # predict on smaller batch
             currentTestData = testData[(i*window*5):((i+1)*window*5)]
@@ -341,16 +365,26 @@ if __name__ == '__main__':
                 portfolioWeights = currentPortfolioWeights
             else:
                 portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
-            
+                # activate safety mechanism if necessary
+                if portfolioWeights.shape[0] >= (tradestopIdx[0] + fifteenMinsInOneDay):
+                    # set weights to all cash for some time to simulate holding cash
+                    for i in range(tradestopIdx[0], tradestopIdx[0]+fifteenMinsInOneDay):
+                        portfolioWeights[i] = np.array([1.] + [0. for _ in range(len(markets)-1)])
+                # else:
+                    # pass  # else add to modified weights, but keep original ones for training
+                
             # update train data
             onlineTrainData = updateOnlineTrainData(onlineTrainData, currentTestData)
             onlinePriceRelativeVectors = updateOnlineTrainData(onlinePriceRelativeVectors, 
-                                                                currentTestPriceRelativeVectors)
+                                                               currentTestPriceRelativeVectors)
             onlineOptimalWeights = updateOnlineTrainData(onlineOptimalWeights, currentOptimalTestWeights)
             
             # perform online training
             portfolio.model.train(onlineTrainData, onlineOptimalWeights, onlinePriceRelativeVectors,
                                   minibatchSize, onlineEpochs)
+            
+            # decrement by 1 after prediction/training for 15m weights are over, since negative indices are used
+            # startIdxForMiddleBB -= 1
         
         # update datetime interval
         currentLowerRangeTest += datetime.timedelta(weeks=weeksIncrement)

@@ -9,7 +9,64 @@ import os
 import datetime
 import numpy as np
 import pandas as pd
+import pandas_ta as ta
 import tensorflow as tf
+
+# TODO : delete if unused
+# TODO : better description
+def prepareBTCMiddleBBands(length=20, mamode='sma'):
+    """
+    Create middle bollinger band data from 1D to be used on 15mins data.
+    
+    :param btc1d, pd.DataFrame
+    
+    returns: pd.DataFrame, middle bollinger band 1D data lengthened to fit 15mins data
+    """
+    btc1d = pd.read_csv('datasets/BTCUSDT_1d_binance.csv')
+    fifteenMinsInOneDay = 4*24
+    temp = []
+    # prepare middle Bollinger Bands data
+    btc1d.ta.bbands(length=length,
+                    mamode=mamode,
+                    col_names=('bb_lower', 'bb_middle', 'bb_higher', 'bb_bandwidth', 'bb_percentage'), 
+                    inplace=True,
+                    append=True)
+    
+    for middle in btc1d['bb_middle']:
+        for _ in range(fifteenMinsInOneDay):
+            temp.append(middle)
+            
+    return pd.DataFrame(data=temp)
+    
+
+# TODO, NOTE : cutoff can be -0.10 in bull markets? or -0.08 with lookback=8
+def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08, lookback=6):
+    """
+    CUSTOM SAFETY MECHANISM.
+    Analyze past data to find signals for a temporary tradestop.
+    
+    :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.)
+    :param middle, middle Bollinger Bands 
+    :param cutoffDrop, tolerance how much downside is allowed (negative value)
+    :param lookback, how many datapoints in the past to consider
+    
+    returns: (index, sumDownside) if there was a signal
+    """
+    tempDrops = []
+    signalDrops = []
+    
+    for i in range(lookback, recent.size):
+        if recent.iloc[i-lookback] < 1:
+            for l in range(lookback):
+                tempDrops.append(recent.iloc[i-lookback-l] - 1)
+            sumDownside = sum(tempDrops)
+            # TODO : implement how to choose bull or bear market
+            cutoffDrop = cutoffBearMarket
+            if sumDownside < cutoffDrop:
+                signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
+            sumDownside = 0
+            tempDrops = []
+    return signalDrops
 
 
 # helper function to verify if there are available GPU devices
