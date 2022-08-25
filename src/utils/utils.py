@@ -14,38 +14,38 @@ import tensorflow as tf
 
 # TODO : delete if unused
 # TODO : better description
-def prepareBTCMiddleBBands(length=20, mamode='sma'):
-    """
-    Create middle bollinger band data from 1D to be used on 15mins data.
+# def prepareBTCMiddleBBands(length=20, mamode='sma'):
+#     """
+#     Create middle bollinger band data from 1D to be used on 15mins data.
     
-    :param btc1d, pd.DataFrame
+#     :param btc1d, pd.DataFrame
     
-    returns: pd.DataFrame, middle bollinger band 1D data lengthened to fit 15mins data
-    """
-    btc1d = pd.read_csv('datasets/BTCUSDT_1d_binance.csv')
-    fifteenMinsInOneDay = 4*24
-    temp = []
-    # prepare middle Bollinger Bands data
-    btc1d.ta.bbands(length=length,
-                    mamode=mamode,
-                    col_names=('bb_lower', 'bb_middle', 'bb_higher', 'bb_bandwidth', 'bb_percentage'), 
-                    inplace=True,
-                    append=True)
+#     returns: pd.DataFrame, middle bollinger band 1D data lengthened to fit 15mins data
+#     """
+#     btc1d = pd.read_csv('datasets/BTCUSDT_1d_binance.csv')
+#     fifteenMinsInOneDay = 4*24
+#     temp = []
+#     # prepare middle Bollinger Bands data
+#     btc1d.ta.bbands(length=length,
+#                     mamode=mamode,
+#                     col_names=('bb_lower', 'bb_middle', 'bb_higher', 'bb_bandwidth', 'bb_percentage'), 
+#                     inplace=True,
+#                     append=True)
     
-    for middle in btc1d['bb_middle']:
-        for _ in range(fifteenMinsInOneDay):
-            temp.append(middle)
+#     for middle in btc1d['bb_middle']:
+#         for _ in range(fifteenMinsInOneDay):
+#             temp.append(middle)
             
-    return pd.DataFrame(data=temp)
+#     return pd.DataFrame(data=temp)
     
 
-# TODO, NOTE : cutoff can be -0.10 in bull markets? or -0.08 with lookback=8
 def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08, lookback=6):
     """
     CUSTOM SAFETY MECHANISM.
     Analyze past data to find signals for a temporary tradestop.
     
-    :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.)
+    :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.).
+           Ideally, values are within [0,1]
     :param middle, middle Bollinger Bands 
     :param cutoffDrop, tolerance how much downside is allowed (negative value)
     :param lookback, how many datapoints in the past to consider
@@ -54,20 +54,41 @@ def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08,
     """
     tempDrops = []
     signalDrops = []
+    # middleBBand = 0  # TODO : move these as params
+    # currentValue = 0
     
+    # TODO : implement how to choose bull or bear market
+    # if current > middle:
+    #     cutoffDrop = cutoffBullMarket
+    # TODO : also set lookback accordingly
+    # else:
+    #     cutoffDrop = cutoffBearMarket
+    
+    # TODO : make sure that recent/sma is decreasing. if its increasing, no need for analysis
+            
     for i in range(lookback, recent.size):
         if recent.iloc[i-lookback] < 1:
-            for l in range(lookback):
-                tempDrops.append(recent.iloc[i-lookback-l] - 1)
-            sumDownside = sum(tempDrops)
-            # TODO : implement how to choose bull or bear market
-            cutoffDrop = cutoffBearMarket
-            if sumDownside < cutoffDrop:
-                signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
-            sumDownside = 0
-            tempDrops = []
+            # if isDecreasing(recent.iloc[(i-lookback):i]):
+                for l in range(lookback):
+                    tempDrops.append(recent.iloc[i-lookback-l] - 1)
+                sumDownside = sum(tempDrops)
+    
+                cutoffDrop = cutoffBearMarket
+                if sumDownside < cutoffDrop:
+                    signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
+                sumDownside = 0
+                tempDrops = []
     return signalDrops
 
+# TODO : delete if unneeded
+# helper function to see if values are decreasing (values should be within [0,1])
+def isDecreasing(recent, cutoff=-2.):
+    # length = len(recent)
+    # hasDecreased = [1. if recent.iloc[i+1] < recent.iloc[i] else 0. for i in range(len(recent)-1)]
+    # totalTimesDecreased = sum(hasDecreased)
+    # print(totalTimesDecreased)
+    # return totalTimesDecreased >= length*0.55
+    return np.polyfit(np.linspace(1,len(recent),len(recent)), recent, 1)[0] <= cutoff
 
 # helper function to verify if there are available GPU devices
 def isGpuAvailable():

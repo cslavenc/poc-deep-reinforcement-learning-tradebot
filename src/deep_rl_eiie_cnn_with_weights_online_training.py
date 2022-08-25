@@ -271,8 +271,8 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,1,0,0,0)
-    endRange = datetime.datetime(2022,6,22,0,0,0)
+    startRange = datetime.datetime(2020,12,24,0,0,0)
+    endRange = startRange + datetime.timedelta(weeks=3)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
     
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     onlineEpochs = 10
     
     weeksIncrement = 6
-    startRangeTest = datetime.datetime(2022,6,22,0,0,0)
+    startRangeTest = endRange
     endRangeTest = datetime.datetime(2022,8,22,0,0,0)
     currentLowerRangeTest = startRangeTest
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
