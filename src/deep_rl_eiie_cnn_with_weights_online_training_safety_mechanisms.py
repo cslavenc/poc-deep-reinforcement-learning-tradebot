@@ -16,7 +16,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
-from utils.utils import prepareData, analyzeLargeDownside
+from utils.utils import prepareData, analyzeLargeDownside, analyzeCurrentDownside
 from utils.plot_utils import plotPortfolioValueChange
 import time  # TODO : remove timing
 
@@ -274,7 +274,8 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2020,12,24,0,0,0)
+    # startRange = datetime.datetime(2020,12,24,0,0,0)
+    startRange = datetime.datetime(2022,6,1,0,0,0)
     endRange = startRange + datetime.timedelta(weeks=3)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
@@ -313,13 +314,15 @@ if __name__ == '__main__':
     endRangeTest = datetime.datetime(2022,8,22,0,0,0)
     currentLowerRangeTest = startRangeTest
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
-    testPriceRelativeVectorsFull = []
     
     # define variables for custom safety mechanism
     portfolioValue = [10000.]
-    shiftTradestopIdx = 0  # needed to shift tradestopIdx
+    allCashWeights = np.array([1.] + [0. for _ in range(len(markets)-1)])
+    tradestopCounter = 0
     tradestopIdx = []  # TODO : solve this more elegantly
-    lengthSMA = 2500
+    shiftTradestopIdx = 0  # needed to shift tradestopIdx
+    longSMA = 2500
+    shortSMA = 100
     fifteenMinsInOneDay = 4*24
     lookbackDownside = 200
     
@@ -332,42 +335,10 @@ if __name__ == '__main__':
             currentLowerRangeTest.strftime('%Y-%m-%d'),
             currentUpperRangeTest.strftime('%Y-%m-%d')))
         
-        # identify tradestop signals based on portfolioValue
-        if len(portfolioValue) > lengthSMA:
-            portfolioValueDF = pd.DataFrame(data={'value': portfolioValue})
-            portfolioValueSMA = ta.sma(portfolioValueDF['value'], length=lengthSMA)
-            
-            # TODO : check here already if current pv is smaller than sma value(?)
-            portfolioGrowth = np.diff(ta.sma(pd.DataFrame(data={'value': portfolioValue})['value'],
-                                             length=100))
-            growthInterval = portfolioGrowth[(len(portfolioWeights)-lengthSMA):len(portfolioWeights)]
-            tradestopSignals = analyzeLargeDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
-                                                    cutoffBearMarket=-0.08, lookback=lookbackDownside)
-            tradestopIdx = [signal[0] + shiftTradestopIdx for signal in tradestopSignals]
-            # print('Identified potential tradestops for previous interval at:\n{}'.format(tradestopIdx))
-            
-            # activate safety mechanism if necessary
-            finalTradestopIdx = []
-            allCashWeights = np.array([1.] + [0. for _ in range(len(markets)-1)])
-            if (len(tradestopIdx) > 0) and (portfolioWeights.shape[0] >= (tradestopIdx[0] + fifteenMinsInOneDay)):
-                # set weights to all cash for some time to simulate holding cash
-                for stopIdx in tradestopIdx:
-                    for idx in range(stopIdx, stopIdx+fifteenMinsInOneDay):
-                        if (portfolioWeights[idx][0] != 1.) and (portfolioValue[idx] <= portfolioValueSMA[idx]):
-                            finalTradestopIdx.append(idx)
-                            portfolioWeights[idx] = allCashWeights
-            print('Activating tradestop at index: {}'.format(finalTradestopIdx))
-            # update index to shift tradestop signals
-            shiftTradestopIdx = len(portfolioWeights)
-        
         # prepare test data
         testData, testPriceRelativeVectors = prepareData(currentLowerRangeTest, currentUpperRangeTest, markets, window)
         testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
         optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
-        
-        # TODO : still needed?
-        for priceRelativeVector in testPriceRelativeVectors:
-            testPriceRelativeVectorsFull.append(priceRelativeVector)
         
         for i in range(int(np.ceil(testData.shape[0]/(window*5)))):
             print('\nTRAIN STEP: {}/{}'.format(i, int(np.ceil(testData.shape[0]/(window*5))-1)))
@@ -379,25 +350,67 @@ if __name__ == '__main__':
             currentPortfolioWeights = portfolio.model.predict([currentTestData, 
                                                                currentOptimalTestWeights])
             
-            # update current portfolioValues
-            # TODO : check for tradestop at this level already
-            currentPortfolioValue = [portfolioValue[-1]]
-            for j in range(1, len(currentTestPriceRelativeVectors)):
-                currentPortfolioValue.append(
-                    portfolio.calculateCurrentPortfolioValue(
-                        currentPortfolioValue[j-1],
-                        np.asarray(currentTestPriceRelativeVectors[j]),
-                        np.asarray(currentPortfolioWeights[j-1]))
-                    )
-            for value in currentPortfolioValue:
-                portfolioValue.append(value)
+            # check if there is an active tradestopCounter from the last time range
+            ii = 0
+            while tradestopCounter > 0:
+                currentPortfolioWeights[ii] = allCashWeights
+                tradestopCounter -= 1
+                ii += 1
             
             # update portfolioWeights
             if np.size(portfolioWeights) > 0:
                 portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
             else:
                 portfolioWeights = currentPortfolioWeights
-
+            
+            # update current portfolioValues
+            currentPortfolioValue = [portfolioValue[-1]]
+            for j in range(1, len(currentTestPriceRelativeVectors)):
+                if tradestopCounter > 0:
+                    portfolioWeights[-len(currentPortfolioWeights)+j] = allCashWeights
+                    tradestopCounter -= 1
+                
+                value = portfolio.calculateCurrentPortfolioValue(
+                            currentPortfolioValue[j-1],
+                            np.asarray(currentTestPriceRelativeVectors[j]),
+                            np.asarray(portfolioWeights[-len(currentPortfolioWeights)+j-1])
+                        )
+                currentPortfolioValue.append(value)  # TODO : remove redundancy
+                portfolioValue.append(value)
+                
+                # identify tradestop signals based on portfolioValue
+                if len(portfolioValue) > longSMA:
+                    portfolioValueDF = pd.DataFrame(data={'value': portfolioValue})
+                    portfolioValueSMA = ta.sma(portfolioValueDF['value'], length=longSMA)
+                    
+                    # the newest portfolio value should be smaller than the latest SMA value
+                    if value <= portfolioValueSMA.iloc[-1]:
+                        portfolioGrowth = np.diff(ta.sma(pd.DataFrame(data={'value': portfolioValue})['value'],
+                                                         length=shortSMA))
+                        growthInterval = portfolioGrowth[-lookbackDownside:]
+                        tradestopSignals = analyzeCurrentDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
+                                                                  cutoffDrop=-0.08,
+                                                                  lookback=lookbackDownside)
+                        
+                        # TODO : requires refactoring since tradestopIdx is always either size 0 or 1
+                        # TODO : maybe add shift tradestop idx as param to analyze current downside function
+                        # in this current scenario, it is simply the last idx that was checked
+                        tradestopIdx = [signal + shiftTradestopIdx for signal in tradestopSignals]
+                        
+                        # activate safety mechanism if necessary
+                        # TODO : is second statement even nevessary now? is it not always > ?
+                        # since i get current portfolio weights as a batch and i update them always before that
+                        # TODO : test on short train time simply to check quickly
+                        if (len(tradestopIdx) > 0) and (portfolioWeights.shape[0] >= tradestopIdx[0]):
+                            # set weights to all cash for some time to simulate holding cash
+                            for idx in tradestopIdx:
+                                if (portfolioWeights[idx][0] != 1.) and (portfolioValue[idx] <= portfolioValueSMA[idx]):
+                                    portfolioWeights[idx] = allCashWeights
+                                    tradestopCounter = fifteenMinsInOneDay
+                                    print('Activating tradestop at index: {}'.format(idx))
+            
+                    # update index to shift tradestop signals
+                    shiftTradestopIdx = len(portfolioValue)-lookbackDownside
                 
             # update train data
             onlineTrainData = updateOnlineTrainData(onlineTrainData, currentTestData)
@@ -408,22 +421,16 @@ if __name__ == '__main__':
             # perform online training
             portfolio.model.train(onlineTrainData, onlineOptimalWeights, onlinePriceRelativeVectors,
                                   minibatchSize, onlineEpochs)
-            
+        
+        # plot intermediate results
+        plotPortfolioValueChange(portfolioValue, startRangeTest, currentUpperRangeTest, startRange, endRange)
+
         # update datetime interval
         currentLowerRangeTest += datetime.timedelta(weeks=weeksIncrement)
         currentUpperRangeTest += datetime.timedelta(weeks=weeksIncrement)
         if currentUpperRangeTest > endRangeTest:
             currentUpperRangeTest = endRangeTest  # ensure data is not out of bounds
-    
+        
     
     print('Final duration: {}'.format(time.time() - starttime))
     
-    # TODO : for-loop wont be necessary if integrated in learning
-    # Calculate and visualize how the portfolio value changes over time
-    # portfolioValue = [10000.]
-    # for i in range(1, len(testPriceRelativeVectorsFull)):
-    #     portfolioValue.append(
-    #         portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1],
-    #                                                   np.asarray(testPriceRelativeVectorsFull[i]),
-    #                                                   np.asarray(portfolioWeights[i-1])))
-    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)

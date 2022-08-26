@@ -1,7 +1,7 @@
 # poc-deep-reinforcement-learning-tradebot
 A custom implementation of the paper [**A Deep Reinforcement Learning Framework for the Financial Portfolio Management Problem**](https://arxiv.org/pdf/1706.10059.pdf).  
   
-Keep in mind that the original paper was published in 2017. The markets has matured quite
+Keep in mind that the original paper was published in 2017. The markets have matured quite
 a lot since then. In particular, the trade volume and the total market cap is much higher
 for assets like BTC, ETH, ADA etc. The original paper only considered those coins with a high market cap.
 They would dynamically determine which assets have a high market cap and adapt what assets to trade. 
@@ -16,35 +16,61 @@ to experience sudden pumps like microcaps.
 This project implements the EIIE CNN at different levels of abstraction:
 
 - `simple_eiie_cnn.py` implements the basic EIIE CNN without adding any weights or biases (figure 2, page 11) or the reinforcement environment.
+
 - `eiie_cnn_with_weights.py` implements a custom training loop to make proper use of the portfolio vector memory  
 **Note**: it does not make use of the RL reward function yet and trading fees are ignored!
+
 - `deep_rl_eiie_cnn_with_weights.py` uses the reward function as the custom loss function.
 This effectively enables the RL environment, since that function is maximized instead of minimized in a traditional setting.  
 However, it does not include trading fees currently nor does it choose the minibatches based on a geometric distribution.
 Moreover, the cash bias that is concatenated in the neural network is not present as it
 still uses **BUSDUSDT** as an asset to simulate cash.
+
 - `eiie_cnn_with_weights_and_cash_bias.py` does not perform so well, since it tries to learn the argmax function basically,
 but the concatenated cash bias is a big hindrance to that.  
 This is not so grave, since this file was an initial POC for the deep RL EIIE CNN.
+
 - `deep_rl_eiie_cnn_with_weights_and_cash_bias.py`: preliminary results have shown that concatenating a cash bias on the level of logits
 leads to very bad results. In fact, it seems to prefer cash over assets most of the time.
 From a mathematical perspective, the cash bias was chosen to be 1. and when applying the softmax
 function with the other logits, it usually allocates the entire portfolio in cash.  
 Since logits can be many magnitudes of order bigger than 1. or negative even, the cash bias
 seems like a strange outlier and thus, softmaxing with this artificial cash bias leads to
-unusable weights (weight 1 almost always in cash bias, while others are basically 0)
+unusable weights (weight 1 almost always in cash bias, while others are basically 0)  
+
 -`deep_rl_eiie_cnn_with_weights_and_trading_fees.py` did not show an improvement in preliminary test trials.  
 In fact, it performed worse and it was not able to avoid larger drops. Qualitatively, the graph looked similar to the version without trading fees.  
+
 - `deep_rl_eiie_cnn_with_weights_online_training.py` implements online training functionality.
 In preliminary experiments, a small improvement could be observed. Also, tuning the hyperparameters (online epochs and window size) is crucial.  
+
 - `deep_rl_eiie_cnn_with_weights_online_training_gpu.py` implements the GPU accelerated version.   
 Keep in mind that it only activates a GPU and updates the shapes in the neural network. 
 Further work is necessary: the train and loss function need to be annotated with `@tf.function` 
 and the for-loops have to be translated into a tf.while_loop and no list.append() calls are allowed. 
 list.append() calls should be replaced with `tf.TensorArray()`. Moreover, all variables should be wrapped either with `tf.constant()` or `tf.Variable`.  
-These graph optimizations will leverage to full power of a GPU. On the other hand, 
-the improved performance might not be as high, since data still has to be copied from CPU to GPU and back to CPU, which adds a considerable overhead.
+These graph optimizations will leverage the full power of a GPU. On the other hand, 
+the improved performance might not be as high, since data still has to be copied from CPU to GPU and back to CPU, which adds a considerable overhead.  
+Therefore, this implementation has not been continued.
+
+- `deep_rl_eiie_cnn_with_weights_online_training_safety_mechanisms.py` implements custom safety mechanisms. 
+These safety mechanisms are tradestops that should simulate holding cash to protect against large downside, 
+such as a sudden BTC crash.  
+Parameters were chosen in a way to identify sustained downtrends (bear markets) with respect to the **portfolio value**. 
+Sometimes, a safety measure is activated after a sharp drop as well. Parameter tuning depends on the predicted time period and timeframe.  
+There are two mechanisms for continuous tradestops that one can evaluate:
+  - predict one timestep, get the weights, calculate portfolio value and evaluate whether a tradestop is needed or not. 
+  Evaluating every single timestep separately leads to very long online training durations (if using a test period of more than a year, this can easily last days), 
+  since online training is executed after every single timestep (instead of waiting N timesteps and using training on aggregated data). 
+  Keep in mind that the online data trainset advances by one datapoint everytime which can lead to over 100000 epochs!   
+  - predict many timesteps, get the weights, calculate the portfolio value, evaluate a potential tradestop and 
+  collect the test data as the new online train data. This approach is equally valid as the previous one. 
+  As there are as many online train periods as in those files without safety mechanisms, the entire simulation is faster.  
+The second approach has been preferred as it is much faster on CPU alone.  
+**Note**: Zooming into a tradestop period, there is still a very slight increase due to cash not being valued at exactly 1, but sometimes at 1.00001 etc.
+
 - TODO
+
 
 
 ## GET STARTED
@@ -56,7 +82,8 @@ the improved performance might not be as high, since data still has to be copied
 - cupy-cuda11x
 
 GPU tests were performed on NVIDIA® GeForce® RTX 2060 SUPER:  
-NVIDIA-SMI 515.65.01    Driver Version: 515.65.01    CUDA Version: 11.7
+NVIDIA-SMI 515.65.01    Driver Version: 515.65.01    CUDA Version: 11.7  
+with cudatoolkit=11.2, cudnn=8.1.0 and cupy-cuda11x
 
 ### RUNNING THE SIMULATION
 - First, run `generate_data_for_trading_pair.py` and make sure to have the folder `src/datasets`. Feel free to delete the placeholder file `.empty`.  
@@ -68,20 +95,35 @@ Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU
 
 ## NOTES
 Preliminary results have shown that **ignoring to divide by the size of the individual rewards list**
-leads to basically the same results, but upside seems to have more potential.  
+leads to basically the same results, but upside potential seems to be higher
+
+**Choosing Crypto Assets**:
+- crypto assets were chosen using the following criteria:
+  - high liquidity: an asset must possess a high daily trade volume
+  - instant selling and buying: thanks to high liquidity, an asset can be sold or bought immediately
+  - zero slippage: the asset is definitely sold/bought at the chosen **spot** price
+  - zero market impact: buying or selling an asset should not influence the market at all
+  Therefore, an initial candidate list has been identified by sorting assets on binance by descending volume. 
+  The final list has been chosen through testing.
+
+**15mins timeframe VS 30mins timeframe**:
+- The paper uses a 30mins timeframe. When choosing a large train dataset (around 6 weeks) it has a reasonably good performance.
+In the end, it still underperformed the 15mins timeframe in initial experiments.  
+Therefore, the 15mins timeframe has been used in all experiments. Moreover, the hyperparameters are tuned for 
+the 15mins timeframe.  
 
 **Feature Engineering**:
 - in preliminary experiments, using volume did not seem to really improve learning
 - moreover, using the middle, higher, lower Bollinger Bands also did not improve learning
 
 **Flakiness**:
-- Sometimes, the loss gets stuck at the same value from the very beginning.
-Usually, restarting helps
-- Sometimes, the loss or gradients are `nan`. Closing the current ipython console
-and running the file in a new one helps. The `nan` value used to occur when using logits as input
-values for the custom loss function. Using the corresponding weights did not lead to that problem anymore. 
-This is probably due to things being cached in the background and after changes are made
-tensorflow becomes confused.  
+- Sometimes, the loss gets stuck at the same value from the very beginning when using a simple EIIE CNN 
+or an EIIE CNN with weights. Restarting helps usually.
+- Sometimes, when training a neural network after some changes have been made to its topology can give the same results as the previous version. 
+This is probably due to TensorFlow not correctly updating the graph structure. 
+Running the neural network again (potentially in a new ipython console) should solve this confusion.
+- In very rare circumstances, the predictions can be really bad or strange. Since neural network weights are initialized randomly in the beginning,
+very unfavourable initial values can lead to a broken prediction. Retraining from scratch usually helps.
 
 **CuPy vs numpy**:
 - initial trials showed a decline in performance when generating the dataset (X_tensor) when using `cupy` probably due to the GPU overhead.
@@ -98,7 +140,7 @@ data preparation time. If in doubt, simply use `numpy`.
 - there are some issues around tf.float64, so tf.float32 has been used instead where applicable
 
 **epochs**:
-- it is unclear yet, what increasing epochs really do
+- epochs for 100 and 1000 showed similar, but 100 epochs was faster in training. Most experiments later on used 300 epochs
 - with the current final model (weights, custom loss function, **no** separate cash bias),
 more epochs look qualitatively the same with a potential improvement, but they take longer to train on CPU
 - epochs compared were 100 vs 1000
@@ -120,7 +162,3 @@ within the same loop/GradientTape.
 **Starting weights w_0**:
 - optimal weights as starting weights during minibatches seem to work better than using weights, 
 where everything is in cash initially
-
-**15mins timeframe VS 30mins timeframe**:
-- The paper uses a 30mins timeframe. When choosing a large train dataset (around 6 weeks) it has a reasonably good performance.
-In the end, it still underperformed the 15mins timeframe in initial experiments.
