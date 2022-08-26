@@ -11,34 +11,8 @@ import numpy as np
 import pandas as pd
 import pandas_ta as ta
 import tensorflow as tf
-
-# TODO : delete if unused
-# TODO : better description
-# def prepareBTCMiddleBBands(length=20, mamode='sma'):
-#     """
-#     Create middle bollinger band data from 1D to be used on 15mins data.
     
-#     :param btc1d, pd.DataFrame
-    
-#     returns: pd.DataFrame, middle bollinger band 1D data lengthened to fit 15mins data
-#     """
-#     btc1d = pd.read_csv('datasets/BTCUSDT_1d_binance.csv')
-#     fifteenMinsInOneDay = 4*24
-#     temp = []
-#     # prepare middle Bollinger Bands data
-#     btc1d.ta.bbands(length=length,
-#                     mamode=mamode,
-#                     col_names=('bb_lower', 'bb_middle', 'bb_higher', 'bb_bandwidth', 'bb_percentage'), 
-#                     inplace=True,
-#                     append=True)
-    
-#     for middle in btc1d['bb_middle']:
-#         for _ in range(fifteenMinsInOneDay):
-#             temp.append(middle)
-            
-#     return pd.DataFrame(data=temp)
-    
-
+# TODO : cleanup function
 def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08, lookback=6):
     """
     CUSTOM SAFETY MECHANISM.
@@ -64,31 +38,19 @@ def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08,
     # else:
     #     cutoffDrop = cutoffBearMarket
     
-    # TODO : make sure that recent/sma is decreasing. if its increasing, no need for analysis
-            
-    for i in range(lookback, recent.size):
+    for i in range(lookback, recent.shape[0]):
         if recent.iloc[i-lookback] < 1:
-            # if isDecreasing(recent.iloc[(i-lookback):i]):
-                for l in range(lookback):
-                    tempDrops.append(recent.iloc[i-lookback-l] - 1)
-                sumDownside = sum(tempDrops)
-    
-                cutoffDrop = cutoffBearMarket
-                if sumDownside < cutoffDrop:
-                    signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
-                sumDownside = 0
-                tempDrops = []
+            for l in range(lookback):
+                tempDrops.append(recent.iloc[i-lookback-l] - 1)
+            sumDownside = sum(tempDrops)
+
+            cutoffDrop = cutoffBearMarket
+            if sumDownside < cutoffDrop:
+                signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
+            sumDownside = 0
+            tempDrops = []
     return signalDrops
 
-# TODO : delete if unneeded
-# helper function to see if values are decreasing (values should be within [0,1])
-def isDecreasing(recent, cutoff=-2.):
-    # length = len(recent)
-    # hasDecreased = [1. if recent.iloc[i+1] < recent.iloc[i] else 0. for i in range(len(recent)-1)]
-    # totalTimesDecreased = sum(hasDecreased)
-    # print(totalTimesDecreased)
-    # return totalTimesDecreased >= length*0.55
-    return np.polyfit(np.linspace(1,len(recent),len(recent)), recent, 1)[0] <= cutoff
 
 # helper function to verify if there are available GPU devices
 def isGpuAvailable():
@@ -129,17 +91,13 @@ def getRawData(startRange, endRange, market):
 def extractFeaturesFromRawData(data):
     return pd.DataFrame(data=[data['close'], data['high'], data['low']]).T
 
-# extract additional features
-def extractAdditionalFeaturesFromRawData(data):
-    return pd.DataFrame(data=data['transactions'])
-
 # format raw data into the right shape to be used as tensors later on
 def formatRawDataForInput(data, window):
     priceData = extractFeaturesFromRawData(data)
     X_tensor = []             # formatted tensor X
     priceRelativeVector = []  # price relative vector
     
-    for i in range(window+20, len(priceData)):
+    for i in range(window, len(priceData)):
         stepData = []
         for j in range(len(priceData.iloc[i])):
             # normalize with close price

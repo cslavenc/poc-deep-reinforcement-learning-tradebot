@@ -15,7 +15,7 @@ from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate,
 
 from utils.utils import prepareData
 from utils.plot_utils import plotPortfolioValueChange
-import time  # TODO : remove timing
+
 
 def expandDimensions(weights):
     # CPU mode None x 4 x 1 x 1: add a new axis at the end of the tensor
@@ -57,9 +57,9 @@ class Portfolio():
         
         # prefer functional API for its flexibility for future model extensions
         mainInputLayer = Input(shape=mainInputShape, name='main_input_layer')
-        main = Conv2D(filters=2, kernel_size=(1, 3),
+        main = Conv2D(filters=2, kernel_size=(1, 30),
                       activation='relu', name='first_conv_layer')(mainInputLayer)
-        main = Conv2D(filters=20, kernel_size=(1, 48),
+        main = Conv2D(filters=20, kernel_size=(1, 221),
                       activation='relu', name='second_conv_layer')(main)
         
         # create layers for input weights
@@ -271,12 +271,11 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2020,12,24,0,0,0)
+    startRange = datetime.datetime(2022,6,1,0,0,0)
     endRange = startRange + datetime.timedelta(weeks=3)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
-               'ADAUSDT_15m', 'MATICUSDT_15m']
+                'ADAUSDT_15m', 'MATICUSDT_15m']
     
-    starttime = time.time()
     data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
     # start portfolio simulation
@@ -294,11 +293,9 @@ if __name__ == '__main__':
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.train(data, optimalWeights, priceRelativeVectors, minibatchSize, epochs)
     
-    traintime = time.time()
-    print('TRAINING TIME: {}'.format(traintime - starttime))
-    
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
+    onlineWindow = 250
     onlineTrainData = data
     onlinePriceRelativeVectors = priceRelativeVectors
     onlineOptimalWeights = optimalWeights
@@ -328,15 +325,15 @@ if __name__ == '__main__':
         for priceRelativeVector in testPriceRelativeVectors:
             testPriceRelativeVectorsFull.append(priceRelativeVector)
         
-        for i in range(int(np.ceil(testData.shape[0]/(window*5)))):
-            print('\nTRAIN STEP: {}/{}'.format(i, int(np.ceil(testData.shape[0]/(window*5))-1)))
+        for i in range(int(np.ceil(testData.shape[0]/(onlineWindow)))):
+            print('\nTRAIN STEP: {}/{}'.format(i, int(np.ceil(testData.shape[0]/(onlineWindow))-1)))
             
             # predict on smaller batch
-            currentTestData = testData[(i*window*5):((i+1)*window*5)]
-            currentOptimalTestWeights = optimalTestWeights[(i*window*5):((i+1)*window*5)]
-            currentTestPriceRelativeVectors = testPriceRelativeVectors[(i*window*5):((i+1)*window*5)]
+            currentTestData = testData[(i+onlineWindow):((i+1)+onlineWindow)]
+            currentOptimalTestWeights = optimalTestWeights[(i+onlineWindow):((i+1)+onlineWindow)]
+            currentTestPriceRelativeVectors = testPriceRelativeVectors[(i+onlineWindow):((i+1)+onlineWindow)]
             currentPortfolioWeights = portfolio.model.predict([currentTestData, 
-                                                               currentOptimalTestWeights])
+                                                                currentOptimalTestWeights])
             if np.size(portfolioWeights) == 0:
                 portfolioWeights = currentPortfolioWeights
             else:
@@ -358,14 +355,11 @@ if __name__ == '__main__':
         if currentUpperRangeTest > endRangeTest:
             currentUpperRangeTest = endRangeTest  # ensure data is not out of bounds
     
-    
-    print('Final duration: {}'.format(time.time() - starttime))
-    
     # Calculate and visualize how the portfolio value changes over time
     portfolioValue = [10000.]
     for i in range(1, len(testPriceRelativeVectorsFull)):
         portfolioValue.append(
             portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1],
-                                                     np.asarray(testPriceRelativeVectorsFull[i]),
-                                                     np.asarray(portfolioWeights[i-1])))
+                                                      np.asarray(testPriceRelativeVectorsFull[i]),
+                                                      np.asarray(portfolioWeights[i-1])))
     plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)

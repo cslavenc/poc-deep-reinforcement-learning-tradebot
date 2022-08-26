@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Aug 22 16:35:36 2022
+Created on Thu Aug 25 09:44:49 2022
 
 @author: slaven
 """
@@ -9,23 +9,22 @@ Created on Mon Aug 22 16:35:36 2022
 import os
 import datetime
 import numpy as np
-import pandas as pd
-import pandas_ta as ta
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
-from utils.utils import prepareData, analyzeLargeDownside
+from utils.utils import prepareData
 from utils.plot_utils import plotPortfolioValueChange
 import time  # TODO : remove timing
+
 
 def expandDimensions(weights):
     # CPU mode None x 4 x 1 x 1: add a new axis at the end of the tensor
     expandedWeights = tf.expand_dims(weights, axis=-1)
     expandedWeights = tf.expand_dims(expandedWeights, axis=-1)
-    
     return expandedWeights
+
 
 class Portfolio():
     """
@@ -274,7 +273,7 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2020,12,24,0,0,0)
+    startRange = datetime.datetime(2022,6,1,0,0,0)
     endRange = startRange + datetime.timedelta(weeks=3)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
@@ -300,13 +299,13 @@ if __name__ == '__main__':
     traintime = time.time()
     print('TRAINING TIME: {}'.format(traintime - starttime))
     
-    # TODO : simplify when it all works and cleanup
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
+    onlineWindow = 250
     onlineTrainData = data
     onlinePriceRelativeVectors = priceRelativeVectors
     onlineOptimalWeights = optimalWeights
-    onlineEpochs = 10
+    onlineEpochs = 3
     
     weeksIncrement = 6
     startRangeTest = endRange
@@ -315,90 +314,38 @@ if __name__ == '__main__':
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
     testPriceRelativeVectorsFull = []
     
-    # define variables for custom safety mechanism
-    portfolioValue = [10000.]
-    shiftTradestopIdx = 0  # needed to shift tradestopIdx
-    tradestopIdx = []  # TODO : solve this more elegantly
-    lengthSMA = 2500
-    fifteenMinsInOneDay = 4*24
-    lookbackDownside = 200
-    
     # always use N weeks test data for predictions to reduce computation time
     # during long periods when testing
     # it likely improves normalization too, as it is normalized on these test batches
     # instead of the entire dataset which includes data from bull and bear markets potentially
     while currentLowerRangeTest < endRangeTest:
+        intermediateTime = time.time()
         print('\nCurrent time interval: {} to {}'.format(
             currentLowerRangeTest.strftime('%Y-%m-%d'),
             currentUpperRangeTest.strftime('%Y-%m-%d')))
-        
-        # identify tradestop signals based on portfolioValue
-        if len(portfolioValue) > lengthSMA:
-            portfolioValueDF = pd.DataFrame(data={'value': portfolioValue})
-            portfolioValueSMA = ta.sma(portfolioValueDF['value'], length=lengthSMA)
-            
-            # TODO : check here already if current pv is smaller than sma value(?)
-            portfolioGrowth = np.diff(ta.sma(pd.DataFrame(data={'value': portfolioValue})['value'],
-                                             length=100))
-            growthInterval = portfolioGrowth[(len(portfolioWeights)-lengthSMA):len(portfolioWeights)]
-            tradestopSignals = analyzeLargeDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
-                                                    cutoffBearMarket=-0.08, lookback=lookbackDownside)
-            tradestopIdx = [signal[0] + shiftTradestopIdx for signal in tradestopSignals]
-            # print('Identified potential tradestops for previous interval at:\n{}'.format(tradestopIdx))
-            
-            # activate safety mechanism if necessary
-            finalTradestopIdx = []
-            allCashWeights = np.array([1.] + [0. for _ in range(len(markets)-1)])
-            if (len(tradestopIdx) > 0) and (portfolioWeights.shape[0] >= (tradestopIdx[0] + fifteenMinsInOneDay)):
-                # set weights to all cash for some time to simulate holding cash
-                for stopIdx in tradestopIdx:
-                    for idx in range(stopIdx, stopIdx+fifteenMinsInOneDay):
-                        if (portfolioWeights[idx][0] != 1.) and (portfolioValue[idx] <= portfolioValueSMA[idx]):
-                            finalTradestopIdx.append(idx)
-                            portfolioWeights[idx] = allCashWeights
-            print('Activating tradestop at index: {}'.format(finalTradestopIdx))
-            # update index to shift tradestop signals
-            shiftTradestopIdx = len(portfolioWeights)
         
         # prepare test data
         testData, testPriceRelativeVectors = prepareData(currentLowerRangeTest, currentUpperRangeTest, markets, window)
         testPriceRelativeVectors = sanitizeCashValues(testPriceRelativeVectors)
         optimalTestWeights = portfolio.generateOptimalWeights(testPriceRelativeVectors)
         
-        # TODO : still needed?
         for priceRelativeVector in testPriceRelativeVectors:
             testPriceRelativeVectorsFull.append(priceRelativeVector)
         
-        for i in range(int(np.ceil(testData.shape[0]/(window*5)))):
-            print('\nTRAIN STEP: {}/{}'.format(i, int(np.ceil(testData.shape[0]/(window*5))-1)))
+        for i in range(int(np.ceil(testData.shape[0]-(onlineWindow)))):
+            print('\nTRAIN STEP: {}/{}'.format(i, int(np.ceil(testData.shape[0]-(onlineWindow))-1)))
             
             # predict on smaller batch
-            currentTestData = testData[(i*window*5):((i+1)*window*5)]
-            currentOptimalTestWeights = optimalTestWeights[(i*window*5):((i+1)*window*5)]
-            currentTestPriceRelativeVectors = testPriceRelativeVectors[(i*window*5):((i+1)*window*5)]
+            currentTestData = testData[i:(i+onlineWindow)]
+            currentOptimalTestWeights = optimalTestWeights[i:(i+onlineWindow)]
+            currentTestPriceRelativeVectors = testPriceRelativeVectors[i:(i+onlineWindow)]
             currentPortfolioWeights = portfolio.model.predict([currentTestData, 
                                                                currentOptimalTestWeights])
-            
-            # update current portfolioValues
-            # TODO : check for tradestop at this level already
-            currentPortfolioValue = [portfolioValue[-1]]
-            for j in range(1, len(currentTestPriceRelativeVectors)):
-                currentPortfolioValue.append(
-                    portfolio.calculateCurrentPortfolioValue(
-                        currentPortfolioValue[j-1],
-                        np.asarray(currentTestPriceRelativeVectors[j]),
-                        np.asarray(currentPortfolioWeights[j-1]))
-                    )
-            for value in currentPortfolioValue:
-                portfolioValue.append(value)
-            
-            # update portfolioWeights
-            if np.size(portfolioWeights) > 0:
-                portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
-            else:
+            if np.size(portfolioWeights) == 0:
                 portfolioWeights = currentPortfolioWeights
-
-                
+            else:
+                portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
+            
             # update train data
             onlineTrainData = updateOnlineTrainData(onlineTrainData, currentTestData)
             onlinePriceRelativeVectors = updateOnlineTrainData(onlinePriceRelativeVectors, 
@@ -408,22 +355,22 @@ if __name__ == '__main__':
             # perform online training
             portfolio.model.train(onlineTrainData, onlineOptimalWeights, onlinePriceRelativeVectors,
                                   minibatchSize, onlineEpochs)
-            
+        
         # update datetime interval
         currentLowerRangeTest += datetime.timedelta(weeks=weeksIncrement)
         currentUpperRangeTest += datetime.timedelta(weeks=weeksIncrement)
         if currentUpperRangeTest > endRangeTest:
             currentUpperRangeTest = endRangeTest  # ensure data is not out of bounds
+        print('Intermediate train duration lasted: {}'.format(time.time() - intermediateTime))
     
     
     print('Final duration: {}'.format(time.time() - starttime))
     
-    # TODO : for-loop wont be necessary if integrated in learning
     # Calculate and visualize how the portfolio value changes over time
-    # portfolioValue = [10000.]
-    # for i in range(1, len(testPriceRelativeVectorsFull)):
-    #     portfolioValue.append(
-    #         portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1],
-    #                                                   np.asarray(testPriceRelativeVectorsFull[i]),
-    #                                                   np.asarray(portfolioWeights[i-1])))
+    portfolioValue = [10000.]
+    for i in range(1, len(testPriceRelativeVectorsFull)):
+        portfolioValue.append(
+            portfolio.calculateCurrentPortfolioValue(portfolioValue[i-1],
+                                                     np.asarray(testPriceRelativeVectorsFull[i]),
+                                                     np.asarray(portfolioWeights[i-1])))
     plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)

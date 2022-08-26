@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Aug 22 16:35:36 2022
+Created on Thu Aug 25 11:00:34 2022
 
 @author: slaven
 """
@@ -306,7 +306,7 @@ if __name__ == '__main__':
     onlineTrainData = data
     onlinePriceRelativeVectors = priceRelativeVectors
     onlineOptimalWeights = optimalWeights
-    onlineEpochs = 10
+    onlineEpochs = 3
     
     weeksIncrement = 6
     startRangeTest = endRange
@@ -317,7 +317,7 @@ if __name__ == '__main__':
     
     # define variables for custom safety mechanism
     portfolioValue = [10000.]
-    shiftTradestopIdx = 0  # needed to shift tradestopIdx
+    shiftTradestopIdx = 0  # shift tradestopIdx when predicting on batches to get index in actual time series
     tradestopIdx = []  # TODO : solve this more elegantly
     lengthSMA = 2500
     fifteenMinsInOneDay = 4*24
@@ -334,10 +334,9 @@ if __name__ == '__main__':
         
         # identify tradestop signals based on portfolioValue
         if len(portfolioValue) > lengthSMA:
+            print('Portfolio value:\n{}'.format(portfolioValue))
             portfolioValueDF = pd.DataFrame(data={'value': portfolioValue})
             portfolioValueSMA = ta.sma(portfolioValueDF['value'], length=lengthSMA)
-            
-            # TODO : check here already if current pv is smaller than sma value(?)
             portfolioGrowth = np.diff(ta.sma(pd.DataFrame(data={'value': portfolioValue})['value'],
                                              length=100))
             growthInterval = portfolioGrowth[(len(portfolioWeights)-lengthSMA):len(portfolioWeights)]
@@ -379,8 +378,8 @@ if __name__ == '__main__':
             currentPortfolioWeights = portfolio.model.predict([currentTestData, 
                                                                currentOptimalTestWeights])
             
+            # TODO : update properly when only advancing by one step
             # update current portfolioValues
-            # TODO : check for tradestop at this level already
             currentPortfolioValue = [portfolioValue[-1]]
             for j in range(1, len(currentTestPriceRelativeVectors)):
                 currentPortfolioValue.append(
@@ -391,7 +390,10 @@ if __name__ == '__main__':
                     )
             for value in currentPortfolioValue:
                 portfolioValue.append(value)
+            # TODO : print current portfolioValue to keep track of it
+            # TODO : also plot if when portfolioValues are bigger, like every 1000 steps or so
             
+            # TODO : update weights properly since you only advance by one step etc.
             # update portfolioWeights
             if np.size(portfolioWeights) > 0:
                 portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
