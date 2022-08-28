@@ -53,7 +53,7 @@ These graph optimizations will leverage the full power of a GPU. On the other ha
 the improved performance might not be as high, since data still has to be copied from CPU to GPU and back to CPU, which adds a considerable overhead.  
 Therefore, this implementation has not been continued.
 
-- `deep_rl_eiie_cnn_with_weights_online_training_safety_mechanisms.py` implements custom safety mechanisms. 
+- `deep_rl_eiie_cnn_with_weights_online_training_safety_mechanisms.py`: **The final version** implements custom safety mechanisms. 
 These safety mechanisms are tradestops that should simulate holding cash to protect against large downside, 
 such as a sudden BTC crash.  
 Parameters were chosen in a way to identify sustained downtrends (bear markets) with respect to the **portfolio value**. 
@@ -69,9 +69,8 @@ There are two mechanisms for continuous tradestops that one can evaluate:
 The second approach has been preferred as it is much faster on CPU alone.  
 **Note**: Zooming into a tradestop period, there is still a very slight increase due to cash not being valued at exactly 1, but sometimes at 1.00001 etc.
 
-- TODO
-
-
+- `deep_rl_eiie_cnn_with_weights_online_training_discrete.py` performs online training on every single new datapoint, 
+which leads to a massively bigger training time. Keep in mind that this POC is without safety mechanisms.  
 
 ## GET STARTED
 ### INSTALLATION
@@ -97,7 +96,7 @@ Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU
 Preliminary results have shown that **ignoring to divide by the size of the individual rewards list**
 leads to basically the same results, but upside potential seems to be higher
 
-**Choosing Crypto Assets**:
+### Choosing Crypto Assets
 - crypto assets were chosen using the following criteria:
   - high liquidity: an asset must possess a high daily trade volume
   - instant selling and buying: thanks to high liquidity, an asset can be sold or bought immediately
@@ -106,17 +105,17 @@ leads to basically the same results, but upside potential seems to be higher
   Therefore, an initial candidate list has been identified by sorting assets on binance by descending volume. 
   The final list has been chosen through testing.
 
-**15mins timeframe VS 30mins timeframe**:
+### 15mins timeframe VS 30mins timeframe
 - The paper uses a 30mins timeframe. When choosing a large train dataset (around 6 weeks) it has a reasonably good performance.
 In the end, it still underperformed the 15mins timeframe in initial experiments.  
 Therefore, the 15mins timeframe has been used in all experiments. Moreover, the hyperparameters are tuned for 
 the 15mins timeframe.  
 
-**Feature Engineering**:
+### Feature Engineering
 - in preliminary experiments, using volume did not seem to really improve learning
 - moreover, using the middle, higher, lower Bollinger Bands also did not improve learning
 
-**Flakiness**:
+### Flakiness
 - Sometimes, the loss gets stuck at the same value from the very beginning when using a simple EIIE CNN 
 or an EIIE CNN with weights. Restarting helps usually.
 - Sometimes, when training a neural network after some changes have been made to its topology can give the same results as the previous version. 
@@ -125,7 +124,7 @@ Running the neural network again (potentially in a new ipython console) should s
 - In very rare circumstances, the predictions can be really bad or strange. Since neural network weights are initialized randomly in the beginning,
 very unfavourable initial values can lead to a broken prediction. Retraining from scratch usually helps.
 
-**CuPy vs numpy**:
+### CuPy vs numpy
 - initial trials showed a decline in performance when generating the dataset (X_tensor) when using `cupy` probably due to the GPU overhead.
 - `cupy` is essentially the GPU version of `numpy`. It still has some pecularities about it though...
 - normally, `import cupy as np` is preferred as the API is basically the same as numpy.
@@ -135,17 +134,16 @@ numpy usually has no trouble with it. On the other hand, cupy requires a convers
 - `cupy` and `numpy` can often interfere with each other. It was only meant to speedup 
 data preparation time. If in doubt, simply use `numpy`.
 
-
-**tf.float32/64**:
+### tf.float32/64
 - there are some issues around tf.float64, so tf.float32 has been used instead where applicable
 
-**epochs**:
+### epochs
 - epochs for 100 and 1000 showed similar, but 100 epochs was faster in training. Most experiments later on used 300 epochs
 - with the current final model (weights, custom loss function, **no** separate cash bias),
 more epochs look qualitatively the same with a potential improvement, but they take longer to train on CPU
 - epochs compared were 100 vs 1000
 
-**Using w_t-1 in the cumulated return loss function**:
+### Using w_t-1 in the cumulated return loss function
 - since I did not find a way to simply save the previous portfolio weights and use the in the next
 step during the "loss" calculation (gradients were always `None`), I used a trick, where the current
 predicted portfolio weights are used for the next priceRelativeVectors (at t+1).  
@@ -155,10 +153,10 @@ do with that exactly trying to compute gradients for the following period, since
 the operations are not recorded anymore. Only those operations are available that are
 within the same loop/GradientTape.
 
-**Cash Bias**:
+### Cash Bias
 - concatenating the cash bias as proposed in the paper did not yield good results in preliminary trials.
 - it seems that using cash as another asset (can be simulated as **BUSDUSDT** for example) gives much more meaningful weight distributions
 
-**Starting weights w_0**:
+### Starting weights w_0
 - optimal weights as starting weights during minibatches seem to work better than using weights, 
 where everything is in cash initially
