@@ -16,7 +16,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Conv2D, Input, Flatten, Lambda, Concatenate, Softmax
 
-from utils.utils import prepareData, analyzeLargeDownside, analyzeCurrentDownside
+from utils.utils import prepareData, analyzeCurrentDownside
 from utils.plot_utils import plotPortfolioValueChange
 import time  # TODO : remove timing
 
@@ -162,11 +162,10 @@ class CustomModel(tf.keras.Model):
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch#using_the_gradienttape_a_first_end-to-end_example    
     
     :param data, the full training data
-    :param weights, only needed for crossentropy loss function
+    :param weights, weights from previous timestep are required as portfolio vector memory
     :param minibatchSize
     :param priceRelativeVectors, required to calculate reward for gradient ascent
     :param epochs, epochs to iterate over for the most outer for-loop
-    
     """  
     def train(self, data, weights, priceRelativeVectors, minibatchSize, epochs):
         # convert to tensor so it can be used by GradientTape properly
@@ -274,8 +273,7 @@ if __name__ == '__main__':
     learning_rate = 0.00019
     
     # prepare train data
-    # startRange = datetime.datetime(2020,12,24,0,0,0)
-    startRange = datetime.datetime(2022,6,1,0,0,0)
+    startRange = datetime.datetime(2020,12,24,0,0,0)
     endRange = startRange + datetime.timedelta(weeks=3)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
@@ -311,7 +309,7 @@ if __name__ == '__main__':
     
     weeksIncrement = 6
     startRangeTest = endRange
-    endRangeTest = datetime.datetime(2022,8,22,0,0,0)
+    endRangeTest = datetime.datetime(2022,8,24,0,0,0)
     currentLowerRangeTest = startRangeTest
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
     
@@ -319,12 +317,13 @@ if __name__ == '__main__':
     portfolioValue = [10000.]
     allCashWeights = np.array([1.] + [0. for _ in range(len(markets)-1)])
     tradestopCounter = 0
-    tradestopIdx = []  # TODO : solve this more elegantly
+    tradestopIdx = []  # TODO : solve this more elegantly, simply delete?
     shiftTradestopIdx = 0  # needed to shift tradestopIdx
     longSMA = 2500
     shortSMA = 100
     fifteenMinsInOneDay = 4*24
     lookbackDownside = 200
+    tradestopMemory = []
     
     # always use N weeks test data for predictions to reduce computation time
     # during long periods when testing
@@ -350,6 +349,14 @@ if __name__ == '__main__':
             currentPortfolioWeights = portfolio.model.predict([currentTestData, 
                                                                currentOptimalTestWeights])
             
+            # TODO : does it make sense to move check in while too: ii <= currentPortfolioWeights.shape[0]-1
+            # TODO : else reset tradestop counter
+            # tradestop should not continue past the very last datapoint (only relevant at the end)
+            if tradestopCounter > currentPortfolioWeights.shape[0]:
+                print('tradestopCounter before: {}'.format(tradestopCounter))
+                print('currentPortfolioWeights: {}'.format(currentPortfolioWeights.shape))
+                tradestopCounter = currentPortfolioWeights.shape[0]
+            
             # check if there is an active tradestopCounter from the last time range
             ii = 0
             while tradestopCounter > 0:
@@ -371,7 +378,7 @@ if __name__ == '__main__':
                     tradestopCounter -= 1
                 
                 value = portfolio.calculateCurrentPortfolioValue(
-                            currentPortfolioValue[j-1],
+                            currentPortfolioValue[j-1],  # TODO : portfolioWeights[-len(currentPortfolioWeights)+j-1] ?
                             np.asarray(currentTestPriceRelativeVectors[j]),
                             np.asarray(portfolioWeights[-len(currentPortfolioWeights)+j-1])
                         )
@@ -389,7 +396,7 @@ if __name__ == '__main__':
                                                          length=shortSMA))
                         growthInterval = portfolioGrowth[-lookbackDownside:]
                         tradestopSignals = analyzeCurrentDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
-                                                                  cutoffDrop=-0.08,
+                                                                  cutoffDrop=-0.08,  # TODO : dont use magic number
                                                                   lookback=lookbackDownside)
                         
                         # TODO : requires refactoring since tradestopIdx is always either size 0 or 1
@@ -408,6 +415,7 @@ if __name__ == '__main__':
                                     portfolioWeights[idx] = allCashWeights
                                     tradestopCounter = fifteenMinsInOneDay
                                     print('Activating tradestop at index: {}'.format(idx))
+                                    tradestopMemory.append(idx)
             
                     # update index to shift tradestop signals
                     shiftTradestopIdx = len(portfolioValue)-lookbackDownside
@@ -422,15 +430,13 @@ if __name__ == '__main__':
             portfolio.model.train(onlineTrainData, onlineOptimalWeights, onlinePriceRelativeVectors,
                                   minibatchSize, onlineEpochs)
         
-        # plot intermediate results
-        plotPortfolioValueChange(portfolioValue, startRangeTest, currentUpperRangeTest, startRange, endRange)
-
         # update datetime interval
         currentLowerRangeTest += datetime.timedelta(weeks=weeksIncrement)
         currentUpperRangeTest += datetime.timedelta(weeks=weeksIncrement)
         if currentUpperRangeTest > endRangeTest:
             currentUpperRangeTest = endRangeTest  # ensure data is not out of bounds
         
-    
     print('Final duration: {}'.format(time.time() - starttime))
+    plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)
+
     

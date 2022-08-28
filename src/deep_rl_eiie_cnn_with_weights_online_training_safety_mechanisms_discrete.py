@@ -341,7 +341,7 @@ if __name__ == '__main__':
                                              length=100))
             growthInterval = portfolioGrowth[(len(portfolioWeights)-lengthSMA):len(portfolioWeights)]
             tradestopSignals = analyzeLargeDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
-                                                    cutoffBearMarket=-0.08, lookback=lookbackDownside)
+                                                    cutoffDrop=-0.08, lookback=lookbackDownside)
             tradestopIdx = [signal[0] + shiftTradestopIdx for signal in tradestopSignals]
             # print('Identified potential tradestops for previous interval at:\n{}'.format(tradestopIdx))
             

@@ -151,7 +151,7 @@ class CustomModel(tf.keras.Model):
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch#using_the_gradienttape_a_first_end-to-end_example    
     
     :param data, the full training data
-    :param weights, only needed for crossentropy loss function
+    :param weights, weights from previous timestep are required as portfolio vector memory
     :param minibatchSize
     :param priceRelativeVectors, required to calculate reward for gradient ascent
     :param epochs, epochs to iterate over for the most outer for-loop

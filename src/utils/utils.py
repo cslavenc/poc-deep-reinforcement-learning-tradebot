@@ -13,7 +13,7 @@ import pandas_ta as ta
 import tensorflow as tf
     
 # TODO : cleanup function
-def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08, lookback=6):
+def analyzeLargeDownside(recent, cutoffDrop=-0.04, lookback=6):
     """
     CUSTOM SAFETY MECHANISM.
     Analyze past data to find signals for a temporary tradestop.
@@ -28,15 +28,6 @@ def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08,
     """
     tempDrops = []
     signalDrops = []
-    # middleBBand = 0  # TODO : move these as params
-    # currentValue = 0
-    
-    # TODO : implement how to choose bull or bear market
-    # if current > middle:
-    #     cutoffDrop = cutoffBullMarket
-    # TODO : also set lookback accordingly
-    # else:
-    #     cutoffDrop = cutoffBearMarket
     
     for i in range(lookback, recent.shape[0]):
         if recent.iloc[i-lookback] < 1:
@@ -44,11 +35,36 @@ def analyzeLargeDownside(recent, cutoffBearMarket=-0.04, cutoffBullMarket=-0.08,
                 tempDrops.append(recent.iloc[i-lookback-l] - 1)
             sumDownside = sum(tempDrops)
 
-            cutoffDrop = cutoffBearMarket
             if sumDownside < cutoffDrop:
                 signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
             sumDownside = 0
             tempDrops = []
+    return signalDrops
+
+
+def analyzeCurrentDownside(recent, cutoffDrop=-0.04, lookback=6):
+    """
+    CUSTOM SAFETY MECHANISM.
+    Analyze past data to find signals for a temporary tradestop for the current period.
+    
+    :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.).
+           Ideally, values are within [0,1]
+    :param middle, middle Bollinger Bands 
+    :param cutoffDrop, tolerance how much downside is allowed (negative value)
+    :param lookback, how many datapoints in the past to consider
+    
+    returns: (index, sumDownside) if there was a signal
+    """
+    tempDrops = []
+    signalDrops = []
+    
+    if recent.iloc[-1] < 1:
+        for l in range(lookback):
+            tempDrops.append(recent.iloc[l]-1)
+        sumDownside = sum(tempDrops)
+
+        if sumDownside < cutoffDrop:
+            signalDrops.append(recent.index[-1])
     return signalDrops
 
 
