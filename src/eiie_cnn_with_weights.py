@@ -22,34 +22,36 @@ def expandDimensions(weights):
     expandedWeights = tf.expand_dims(expandedWeights, axis=-1)
     return expandedWeights
 
+
 class Portfolio():
-    """
-    EQUATION 2: p_t = p_t-1 * <y_t, w_t-1>
     
-    :param prevPortfolioValue, p_t-1
-    :param currentPriceRelativeVector, y_t from the current period t
-    :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
-    
-    return: p_t, current portfolio value (current net worth)
-    """
     def calculateCurrentPortfolioValue(self, prevPortfolioValue, currentPriceRelativeVector, prevPortfolioWeights):
+        """
+        EQUATION 2: p_t = p_t-1 * <y_t, w_t-1>
+        
+        :param prevPortfolioValue, p_t-1
+        :param currentPriceRelativeVector, y_t from the current period t
+        :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
+        
+        return: p_t, current portfolio value (current net worth)
+        """
         return prevPortfolioValue * (currentPriceRelativeVector @ prevPortfolioWeights)  # p_t = p_t-1 * <y_t, w_t-1>
     
     
-    """
-    Simplified implementation with weights of FIGURE 2, page 14
-    
-    :param X_tensor, input data (CPU mode: timesteps x markets x lookback x features), features = close, high, low, etc.
-    :param weights, input weights to obtain the shapes for the weights input layer
-    
-    return: an EIIE CNN model with weights concatenated
-    
-    NOTE: if using GPU mode, shapes and kernel sizes need to be adapted
-    NOTE: the weights are also known as the **portfolio vector memory** or portfolioVectorMemory in the paper
-    NOTE: The portfolioVectorMemory excludes the cash weights. This implementation uses the cash weights anyway
-          if it is present in the input data (often simulated as BUSDUSDT)
-    """
     def createEiieCnnWithWeights(self, X_tensor, weights):
+        """
+        Simplified implementation with weights of FIGURE 2, page 14
+        
+        :param X_tensor, input data (CPU mode: timesteps x markets x lookback x features), features = close, high, low, etc.
+        :param weights, input weights to obtain the shapes for the weights input layer
+        
+        return: an EIIE CNN model with weights concatenated
+        
+        NOTE: if using GPU mode, shapes and kernel sizes need to be adapted
+        NOTE: the weights are also known as the **portfolio vector memory** or portfolioVectorMemory in the paper
+        NOTE: The portfolioVectorMemory excludes the cash weights. This implementation uses the cash weights anyway
+              if it is present in the input data (often simulated as BUSDUSDT)
+        """
         mainInputShape = np.shape(X_tensor)[1:]
         weightsInputShape = np.shape(weights)[1:]
         
@@ -77,18 +79,17 @@ class Portfolio():
         self.model = eiieCnnWithWeightsModel
     
     
-    
-    """
-    Generate the optimal weights, which is allocating everything into the asset that grew the most.
-    Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
-    
-    :param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
-    
-    return: optimized weights, where 1 for the asset with the highest increase and else 0
-    
-    NOTE: if cash is added, it will only get weight 1., if all other assets were decreasing (growth < 1)
-    """
     def generateOptimalWeights(self, priceRelativeVectors):
+        """
+        Generate the optimal weights, which is allocating everything into the asset that grew the most.
+        Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
+        
+        :param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
+        
+        return: optimized weights, where 1 for the asset with the highest increase and else 0
+        
+        NOTE: if cash is added, it will only get weight 1., if all other assets were decreasing (growth < 1)
+        """
         optimalWeights = []
         optimalAssetIds = np.argmax(priceRelativeVectors, axis=1)
         
@@ -100,34 +101,34 @@ class Portfolio():
         return np.asarray(optimalWeights)
 
 
-"""
-This custom model implements the basis necessary for the RL enviromnent.
-It uses the intermediate portfolio weights for a minibatch from the previous timestep
-as input in the current timestep.
-
-NOTE: ensuring that the custom train loop in train() is correct, it has been
-      compared to a custom implementation of train_step() (which is used in fit()).
-      train_step() in turn has been sanity checked on the basic fit() function.
-NOTE: keep in mind that the portfolio vector memory for a minibatch has shape 
-      (minibatchSize, marketsSize), e.g. (32, 6).
-      Thus we get many pairs of portfolio weights.
-"""
 class CustomModel(tf.keras.Model):
+    """
+    This custom model implements the basis necessary for the RL enviromnent.
+    It uses the intermediate portfolio weights for a minibatch from the previous timestep
+    as input in the current timestep.
+
+    NOTE: ensuring that the custom train loop in train() is correct, it has been
+          compared to a custom implementation of train_step() (which is used in fit()).
+          train_step() in turn has been sanity checked on the basic fit() function.
+    NOTE: keep in mind that the portfolio vector memory for a minibatch has shape 
+          (minibatchSize, marketsSize), e.g. (32, 6).
+          Thus we get many pairs of portfolio weights.
+    """
+    
     portfolioVectorMemory = []
 
-    """
-    Implementation of the custom training loop from scratch.
-    This is necessary, since we need the intermediate weights as well which
-    are used as the additional inputs in the EIIE CNN.
-    https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch#using_the_gradienttape_a_first_end-to-end_example    
-    
-    :param data, the full training data
-    :param weights, only needed for crossentropy loss function
-    :param minibatchSize
-    :param epochs, epochs to iterate over for the most outer for-loop
-    
-    """    
     def train(self, data, weights, minibatchSize, epochs):
+        """
+        Implementation of the custom training loop from scratch.
+        This is necessary, since we need the intermediate weights as well which
+        are used as the additional inputs in the EIIE CNN.
+        https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch#using_the_gradienttape_a_first_end-to-end_example    
+        
+        :param data, the full training data
+        :param weights, only needed for crossentropy loss function
+        :param minibatchSize
+        :param epochs, epochs to iterate over for the most outer for-loop
+        """    
         # prepare for minibatch evaluation
         originalMinibatchSize = minibatchSize
         dataSize = data.shape[0]  # size of the time series
