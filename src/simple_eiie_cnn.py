@@ -18,55 +18,32 @@ from utils.plot_utils import plotPortfolioValueChange
 
 
 class Portfolio:
-    """
-    EQUATION 2: p_t = p_t-1 * <y_t, w_t-1>
     
-    :param prevPortfolioValue, p_t-1
-    :param currentPriceRelativeVector, y_t from the current period t
-    :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
-    
-    return: p_t, current portfolio value (current net worth)
-    """
     def calculateCurrentPortfolioValue(self, prevPortfolioValue, currentPriceRelativeVector, prevPortfolioWeights):
+        """
+        EQUATION 2: p_t = p_t-1 * <y_t, w_t-1>
+        
+        :param prevPortfolioValue, p_t-1
+        :param currentPriceRelativeVector, y_t from the current period t
+        :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
+        
+        return: p_t, current portfolio value (current net worth)
+        """
         return prevPortfolioValue * (currentPriceRelativeVector @ prevPortfolioWeights)  # p_t = p_t-1 * <y_t, w_t-1>
     
-    """
-    EQUATION 3: rho_t = <y_t, w_t-1> - 1
     
-    :param currentPriceRelativeVector, y_t from the current period t
-    :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
-    
-    return: rho_t, current rate of return
-    """
-    def calculateRateOfReturn(self, currentPriceRelativeVector, prevPortfolioWeights):
-        return (currentPriceRelativeVector @ prevPortfolioWeights) - 1
-    
-    """
-    EQUATION 4: r_t = ln(<y_t, w_t-1>)
-    
-    :param currentPriceRelativeVector, y_t from the current period t
-    :param prevPortfolioWeights, w_t-1 weights at the beginning of period t AFTER capital reallocation
-    
-    return: rho_t, current rate of return
-    
-    Note: np.log is the NATURAL logarithm, often denoted as ln()
-    """
-    def calculateLnRateOfReturn(self, currentPriceRelativeVector, prevPortfolioWeights):
-        return np.log(self.calculateRateOfReturn(currentPriceRelativeVector, prevPortfolioWeights))
-    
-    
-    """
-    Simplified implementation of FIGURE 2, page 14
-    
-    :param X_tensor, input data (CPU mode: timesteps x markets x lookback x features), features = close, high, low, etc.
-    
-    return: a simple EIIE CNN model
-    
-    NOTE: if using GPU mode, shapes and kernel sizes need to be adapted
-    NOTE: this is a simple EIIE CNN without adding pvm_t-1 = w_t-1[1:] or the cash bias
-    NOTE: prefer functional API for its flexibility for future model extensions
-    """
     def createSimpleEIIECNN(self, X_tensor):
+        """
+        Simplified implementation of FIGURE 2, page 14
+        
+        :param X_tensor, input data (CPU mode: timesteps x markets x lookback x features), features = close, high, low, etc.
+        
+        return: a simple EIIE CNN model
+        
+        NOTE: if using GPU mode, shapes and kernel sizes need to be adapted
+        NOTE: this is a simple EIIE CNN without adding pvm_t-1 = w_t-1[1:] or the cash bias
+        NOTE: prefer functional API for its flexibility for future model extensions
+        """
         mainInputShape = np.shape(X_tensor)[1:]
         
         mainInputLayer = Input(shape=mainInputShape, name='main_input_layer')
@@ -81,17 +58,17 @@ class Portfolio:
         self.model = simpleEiieCnnModel
 
 
-    """
-    Generate the optimal weights, which is allocating everything into the asset that grew the most.
-    Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
-    
-    :param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
-    
-    return: optimized weights, where 1 for the asset with the highest increase and else 0
-    
-    NOTE: if cash is added, it will only get weight 1., if all other assets were decreasing (growth < 1)
-    """
     def generateOptimalWeights(self, priceRelativeVectors):
+        """
+        Generate the optimal weights, which is allocating everything into the asset that grew the most.
+        Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
+        
+        :param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
+        
+        return: optimized weights, where 1 for the asset with the highest increase and else 0
+        
+        NOTE: if cash is added, it will only get weight 1., if all other assets were decreasing (growth < 1)
+        """
         optimalWeights = []
         optimalAssetIds = np.argmax(priceRelativeVectors, axis=1)
         
@@ -134,7 +111,8 @@ if __name__ == '__main__':
     # prepare train data
     startRange = datetime.datetime(2022,6,17,0,0,0)
     endRange = datetime.datetime(2022,6,22,0,0,0)
-    markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m', 'ADAUSDT_15m', 'MATICUSDT_15m']
+    markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
+               'ADAUSDT_15m', 'MATICUSDT_15m']
     
     data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
         
