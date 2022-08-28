@@ -206,8 +206,6 @@ class CustomModel(tf.keras.Model):
                 self.optimizer.apply_gradients(zip(gradients, self.trainable_weights))
                 
                 # Update metrics (includes the metric that tracks the loss)
-                # TODO : do i really need predicted logits or the weights?
-                # TODO : does this metric here even make sense, since I am not using it in an argmax fashion?
                 self.compiled_metrics.update_state(tf.convert_to_tensor(weights[(i*minibatchSize):((i+1)*minibatchSize)]),
                                                    tf.convert_to_tensor(predictedPortfolioLogits))
                 # reset for the next minibatch
