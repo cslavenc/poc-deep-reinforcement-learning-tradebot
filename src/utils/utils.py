@@ -12,43 +12,43 @@ import pandas as pd
 import pandas_ta as ta
 import tensorflow as tf
     
-# TODO : cleanup function
-def analyzeLargeDownside(recent, cutoffDrop=-0.04, lookback=6):
+def analyzeLargeDownside(recent, shiftIdx=0, cutoffDrop=-0.04, lookback=6):
     """
     CUSTOM SAFETY MECHANISM.
     Analyze past data to find signals for a temporary tradestop.
     
     :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.).
            Ideally, values are within [0,1]
+    :param shiftIdx, by how much to shift the index if data is evaluated on a batch
     :param middle, middle Bollinger Bands 
     :param cutoffDrop, tolerance how much downside is allowed (negative value)
     :param lookback, how many datapoints in the past to consider
     
     returns: (index, sumDownside) if there was a signal
     """
-    tempDrops = []
     signalDrops = []
     
     for i in range(lookback, recent.shape[0]):
+        tempDrops = []
         if recent.iloc[i-lookback] < 1:
             for l in range(lookback):
                 tempDrops.append(recent.iloc[i-lookback-l] - 1)
             sumDownside = sum(tempDrops)
 
             if sumDownside < cutoffDrop:
-                signalDrops.append((recent.index[i-lookback], sumDownside))  # TODO : do i need sumDownside here? it was only for analytical purposes...
+                signalDrops.append(recent.index[i-lookback]+shiftIdx)
             sumDownside = 0
-            tempDrops = []
     return signalDrops
 
 
-def analyzeCurrentDownside(recent, cutoffDrop=-0.04, lookback=6):
+def analyzeCurrentDownside(recent, shiftIdx=0, cutoffDrop=-0.04, lookback=6):
     """
     CUSTOM SAFETY MECHANISM.
     Analyze past data to find signals for a temporary tradestop for the current period.
     
     :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.).
            Ideally, values are within [0,1]
+    :param shiftIdx, by how much to shift the index if data is evaluated on a batch
     :param middle, middle Bollinger Bands 
     :param cutoffDrop, tolerance how much downside is allowed (negative value)
     :param lookback, how many datapoints in the past to consider
@@ -64,7 +64,7 @@ def analyzeCurrentDownside(recent, cutoffDrop=-0.04, lookback=6):
         sumDownside = sum(tempDrops)
 
         if sumDownside < cutoffDrop:
-            signalDrops.append(recent.index[-1])
+            signalDrops.append(recent.index[-1] + shiftIdx)
     return signalDrops
 
 
