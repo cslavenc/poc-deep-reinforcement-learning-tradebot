@@ -38,7 +38,7 @@ Since logits can be many magnitudes of order bigger than 1. or negative even, th
 seems like a strange outlier and thus, softmaxing with this artificial cash bias leads to
 unusable weights (weight 1 almost always in cash bias, while others are basically 0)
 
--`deep_rl_eiie_cnn_with_weights_and_trading_fees.py` did not show an improvement in preliminary test trials.  
+- `deep_rl_eiie_cnn_with_weights_and_trading_fees.py` did not show an improvement in preliminary test trials.  
 In fact, it performed worse and it was not able to avoid larger drops. Qualitatively, the graph looked similar to the version without trading fees.  
 
 - `deep_rl_eiie_cnn_with_weights_online_training.py` implements online training functionality.
