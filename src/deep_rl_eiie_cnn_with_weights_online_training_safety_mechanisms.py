@@ -294,6 +294,9 @@ if __name__ == '__main__':
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.train(data, optimalWeights, priceRelativeVectors, minibatchSize, epochs)
     
+    # save model weights and topology
+    portfolio.model.save("models/saved_model_test")
+    
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
     onlineTrainData = data
