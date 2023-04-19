@@ -3,6 +3,7 @@
 
 # ignore saved models
 models/*
+saved*
 !models/.empty
 
 # ignore datasets

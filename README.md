@@ -78,7 +78,6 @@ which leads to a massively bigger training time. Keep in mind that this POC is w
   - cudatoolkit=11.2 (GPU)
   - cudnn=8.1.0 (GPU)
 - pandas-ta=0.3.14
-- cupy-cuda11x
 
 GPU tests were performed on NVIDIA® GeForce® RTX 2060 SUPER:  
 NVIDIA-SMI 515.65.01    Driver Version: 515.65.01    CUDA Version: 11.7  
