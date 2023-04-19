@@ -75,8 +75,8 @@ which leads to a massively bigger training time. Keep in mind that this POC is w
 ## GET STARTED
 ### INSTALLATION
 - tensorflow=2.9.1
-  - cudatoolkit=11.2
-  - cudnn=8.1.0
+  - cudatoolkit=11.2 (GPU)
+  - cudnn=8.1.0 (GPU)
 - pandas-ta=0.3.14
 - cupy-cuda11x
 

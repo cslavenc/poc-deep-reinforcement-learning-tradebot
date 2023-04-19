@@ -1,7 +1,13 @@
 # custom
 .idea
 
+# ignore saved models
+models/*
+!models/.empty
+
 # ignore datasets
+datasets/*
+!datasets/.empty
 *.csv
 cached_datasets
 
