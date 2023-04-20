@@ -225,7 +225,7 @@ class CustomModel(tf.keras.Model):
 
 """
 Sometimes, the cash is slightly below 1, since the current datasets actually looks at
-USDCUSDT which itself fluctuates a little bit. This should not be the case actually.
+BUSDUSDT which itself fluctuates a little bit. This should not be the case actually.
 Also, a very small bias has been added to values = 1., because sometimes, a crypto asset
 remains constant during a timestep and thus has its price relative value is 1. too and
 the neural network could potentially prefer this one over cash.

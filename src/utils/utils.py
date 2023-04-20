@@ -19,7 +19,6 @@ def analyzeLargeDownside(recent, shiftIdx=0, cutoffDrop=-0.04, lookback=6):
     :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.).
            Ideally, values are within [0,1]
     :param shiftIdx, by how much to shift the index if data is evaluated on a batch
-    :param middle, middle Bollinger Bands 
     :param cutoffDrop, tolerance how much downside is allowed (negative value)
     :param lookback, how many datapoints in the past to consider
     
@@ -48,7 +47,6 @@ def analyzeCurrentDownside(recent, shiftIdx=0, cutoffDrop=-0.04, lookback=6):
     :param recent, pd.DataFrame: recent data (portfolioValue, increase/decrease etc.).
            Ideally, values are within [0,1]
     :param shiftIdx, by how much to shift the index if data is evaluated on a batch
-    :param middle, middle Bollinger Bands 
     :param cutoffDrop, tolerance how much downside is allowed (negative value)
     :param lookback, how many datapoints in the past to consider
     
