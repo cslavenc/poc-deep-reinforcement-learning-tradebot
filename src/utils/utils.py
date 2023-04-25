@@ -141,8 +141,8 @@ def prepareData(startRange, endRange, markets, window, gpu=False):
         data = np.swapaxes(np.swapaxes(np.swapaxes(data, 2, 3), 0, 1), 1, 3)
     else:
         data = np.swapaxes(np.swapaxes(data, 2, 3), 0, 1)  # the tensor X_t (EQUATION 18, page 9)
-    priceRelativeVectors = np.transpose(priceRelativeVectors)
     
+    priceRelativeVectors = np.transpose(priceRelativeVectors)
     return data, priceRelativeVectors
 
 
