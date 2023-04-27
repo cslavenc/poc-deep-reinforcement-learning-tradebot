@@ -87,7 +87,7 @@ class Portfolio():
     Generate the optimal weights, which is allocating everything into the asset that grew the most.
     Increase is usually >1. This is used as a simulated "y_true" for the cross entropy loss function.
     
-    :param priceRelativeVectors, the highest increase/lowest decrease get weight 1., others weight 0.
+    :param priceRelativeVectors, the highest increase/lowest decrease gets weight 1., others weight 0.
     
     return: optimized weights, where 1 for the asset with the highest increase and else 0
     
@@ -119,6 +119,18 @@ NOTE: keep in mind that the portfolio vector memory for a minibatch has shape
 """
 class CustomModel(tf.keras.Model):
     portfolioVectorMemory = []
+    
+    """
+    CustomModel uses a custom loss function. By default, it will not be saved. 
+    Thus, the custom loss function is explicitly saved into the base_config 
+    which is available after loading the model.
+    Alternatively, compile=False may be set to avoid auto-compilation. Then, 
+    a loss function can be passed and the loaded model has to be compiled.
+    """
+    def get_config(self):
+        base_config = super(CustomModel, self)
+        base_config['cumulatedReturn'] = self.cumulatedReturn
+        return base_config
     
     """
     EQUATION 22: R = 1/t_f * sum(r_t, start=1, end=t_f+1)
@@ -266,7 +278,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
     
     # define a few neural network specific variables
-    epochs = 300
+    epochs = 1
     window = 50
     minibatchSize = 32
     learning_rate = 0.00019
@@ -295,7 +307,7 @@ if __name__ == '__main__':
     portfolio.model.train(data, optimalWeights, priceRelativeVectors, minibatchSize, epochs)
     
     # save model weights and topology
-    portfolio.model.save("models/saved_model_test")
+    portfolio.model.save("models/saved_model_test", include_optimizer=True)
     
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
