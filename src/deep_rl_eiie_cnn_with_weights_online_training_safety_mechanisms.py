@@ -121,18 +121,6 @@ class CustomModel(tf.keras.Model):
     portfolioVectorMemory = []
     
     """
-    CustomModel uses a custom loss function. By default, it will not be saved. 
-    Thus, the custom loss function is explicitly saved into the base_config 
-    which is available after loading the model.
-    Alternatively, compile=False may be set to avoid auto-compilation. Then, 
-    a loss function can be passed and the loaded model has to be compiled.
-    """
-    # def get_config(self):
-    #     base_config = super(CustomModel, self).get_config()
-    #     base_config['cumulatedReturn'] = self.cumulatedReturn
-    #     return base_config
-    
-    """
     EQUATION 22: R = 1/t_f * sum(r_t, start=1, end=t_f+1)
     This cumulated reward function is used for optimization for gradient *ASCENT*
     This function is also used as "loss" when optimizing the neural network weights
@@ -305,9 +293,6 @@ if __name__ == '__main__':
     priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     portfolio.model.train(data, optimalWeights, priceRelativeVectors, minibatchSize, epochs)
-    
-    # save model weights and topology
-    portfolio.model.save("models/saved_model_test", include_optimizer=True)
     
     # get predicted portfolio weights and perform online training
     portfolioWeights = []
