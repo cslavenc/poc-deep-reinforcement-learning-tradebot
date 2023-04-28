@@ -127,10 +127,10 @@ class CustomModel(tf.keras.Model):
     Alternatively, compile=False may be set to avoid auto-compilation. Then, 
     a loss function can be passed and the loaded model has to be compiled.
     """
-    def get_config(self):
-        base_config = super(CustomModel, self)
-        base_config['cumulatedReturn'] = self.cumulatedReturn
-        return base_config
+    # def get_config(self):
+    #     base_config = super(CustomModel, self).get_config()
+    #     base_config['cumulatedReturn'] = self.cumulatedReturn
+    #     return base_config
     
     """
     EQUATION 22: R = 1/t_f * sum(r_t, start=1, end=t_f+1)
