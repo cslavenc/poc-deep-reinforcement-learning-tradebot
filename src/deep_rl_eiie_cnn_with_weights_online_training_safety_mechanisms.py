@@ -262,17 +262,19 @@ def updateOnlineTrainData(data, testData):
 
 if __name__ == '__main__':
     # enforce CPU mode
+    import time
+    starttime = time.time()
     K.set_image_data_format('channels_last')
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
     
     # define a few neural network specific variables
-    epochs = 1
+    epochs = 300
     window = 50
     minibatchSize = 32
     learning_rate = 0.00019
     
     # prepare train data
-    startRange = datetime.datetime(2022,6,1,0,0,0)
+    startRange = datetime.datetime(2020,12,24,0,0,0)
     endRange = startRange + datetime.timedelta(weeks=3)
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
@@ -301,9 +303,12 @@ if __name__ == '__main__':
     onlineOptimalWeights = optimalWeights
     onlineEpochs = 10
     
-    weeksIncrement = 6
+    weeksIncrement = 6  # TODO : reset to 6, if it proves superior
+    tradestops = []     # TODO : remove, only for plotting/inspecting purposes
+    originalPortfolioWeights = []  # TODO : remove
+    originalPortfolioValue = [10000.]  # TODO : remove
     startRangeTest = endRange
-    endRangeTest = datetime.datetime(2022,8,22,0,0,0)
+    endRangeTest = datetime.datetime(2023,4,28,0,0,0)
     currentLowerRangeTest = startRangeTest
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
     
@@ -314,7 +319,8 @@ if __name__ == '__main__':
     shiftTradestopIdx = 0  # needed to shift idx in tradestopSignals
     longSMA = 2500
     shortSMA = 100
-    fifteenMinsInOneDay = 4*24  # tradestop duration
+    # TODO : what if tradestop for two days?
+    fifteenMinsInOneDay = 4*24  # tradestop duration  # TODO : adapt var name?
     lookbackDownside = 200
     cutoffDrop = -0.08
     
@@ -356,8 +362,12 @@ if __name__ == '__main__':
             # update portfolioWeights
             if np.size(portfolioWeights) > 0:
                 portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
+                # TODO : rm
+                originalPortfolioWeights = np.append(originalPortfolioWeights, currentPortfolioWeights, axis=0)
             else:
                 portfolioWeights = currentPortfolioWeights
+                # TODO : rm
+                originalPortfolioWeights = currentPortfolioWeights
             
             # update current portfolioValues
             currentPortfolioValue = [portfolioValue[-1]]
@@ -373,6 +383,15 @@ if __name__ == '__main__':
                         )
                 currentPortfolioValue.append(value)
                 portfolioValue.append(value)
+                
+                # TODO : remove original value calculation - analytical purposes
+                originalValue = portfolio.calculateCurrentPortfolioValue(
+                            currentPortfolioValue[j-1],
+                            currentTestPriceRelativeVectors[j],
+                            originalPortfolioWeights[-len(currentPortfolioWeights)+j-1]
+                        )
+                originalPortfolioValue.append(originalValue)
+                
                 
                 # identify tradestop signals based on portfolioValue
                 if len(portfolioValue) > longSMA:
@@ -396,6 +415,7 @@ if __name__ == '__main__':
                                 if (portfolioWeights[idx][0] != 1.) and (portfolioValue[idx] <= portfolioValueSMA[idx]):
                                     portfolioWeights[idx] = allCashWeights
                                     tradestopCounter = fifteenMinsInOneDay
+                                    tradestops.append(idx)  # TODO : remove tracker when inspection is finished
             
                     # update index to shift tradestop signals
                     shiftTradestopIdx = len(portfolioValue)-lookbackDownside
@@ -415,7 +435,8 @@ if __name__ == '__main__':
         currentUpperRangeTest += datetime.timedelta(weeks=weeksIncrement)
         if currentUpperRangeTest > endRangeTest:
             currentUpperRangeTest = endRangeTest  # ensure data is not out of bounds
-        
+    
     plotPortfolioValueChange(portfolioValue, startRangeTest, endRangeTest, startRange, endRange)
+    endtime = time.time()
 
     
