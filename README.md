@@ -89,7 +89,28 @@ This creates the csv files that are used for static backtesting throughout this 
 - then, run a neural network file of your choice for analysis. Note that depending which neural network you are running, they might implement only
 some aspects of the actual neural network in the paper as well as evaluate the data differently.  
 
-Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU mode where the support has been implemented.
+Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU mode where the support has been implemented.  
+
+## Training
+The network is sensitive to the train period. It should be chosen carefully and with empirical testing. 
+Based on initial testing, it seems to be more favourable to chose a train period during a bull market.
+These dates have been used as start dates for training:
+
+- Good: `datetime.datetime(2020,12,24,0,0,0)` before the distribution phase (bull market)
+- Underperforming: `datetime.datetime(2020,9,7,0,0,0)` shortly before the start of the bull market
+
+### Online Training
+TODO: try tradestop of 3 days? or 4 even?
+- weeksIncrement: 6, 3, 4, what about 1 or 2 weeks?
+  - whether training on weekly increments of 3 or 6 takes about the same time, since the number of train steps adapts accordingly, 
+    but smaller weekly increments prepare data more often which seems to last a bit longer in total.
+
+- tradestop duration: 1d vs 2d
+  - **1 day**: While a tradestop of 1 day works very well during bullish periods it seems to be underperform during clearly bearish periods. 
+    This can be fixed manually by turning off the tradebot during clearly bearish periods.
+  - **2 days**: A tradestop for 2 days seems to perform better during the bear market as it goes 
+    quite sideways and is thus more stable during a clear bear market. During a bull market, 
+    it even outperformed the 1 day tradestop configuration.
 
 ## NOTES
 Preliminary results have shown that **ignoring to divide by the size of the individual rewards list**
@@ -97,10 +118,10 @@ leads to basically the same results, but upside potential seems to be higher
 
 ### Choosing Crypto Assets
 - crypto assets were chosen using the following criteria:
-  - high liquidity: an asset must possess a high daily trade volume
-  - instant selling and buying: thanks to high liquidity, an asset can be sold or bought immediately
-  - zero slippage: the asset is definitely sold/bought at the chosen **spot** price
-  - zero market impact: buying or selling an asset should not influence the market at all
+  - **high liquidity**: an asset must possess a high daily trade volume
+  - **instant selling and buying**: thanks to high liquidity, an asset can be sold or bought immediately
+  - **zero slippage**: the asset is definitely sold/bought at the chosen **spot** price
+  - **zero market impact**: buying or selling an asset should not influence the market at all
   Therefore, an initial candidate list has been identified by sorting assets on binance by descending volume. 
   The final list has been chosen through testing.
 
@@ -143,7 +164,7 @@ more epochs look qualitatively the same with a potential improvement, but they t
 - epochs compared were 100 vs 1000
 
 ### Using w_t-1 in the cumulated return loss function
-- since I did not find a way to simply save the previous portfolio weights and use the in the next
+- since I did not find a way to simply save the previous portfolio weights and use them in the next
 step during the "loss" calculation (gradients were always `None`), I used a trick, where the current
 predicted portfolio weights are used for the next priceRelativeVectors (at t+1).  
 The operations for forward pass and backpropagation are not available when iterating within a loop,
@@ -153,6 +174,9 @@ the operations are not recorded anymore. Only those operations are available tha
 within the same loop/GradientTape.
 
 ### Cash Bias
+The paper suggests to use a separat cash layer as cash bias. This design decision was likely due to the fact 
+that it was written in 2017 and at that time, there were no stablecoins to be used as cash.
+
 - concatenating the cash bias as proposed in the paper did not yield good results in preliminary trials.
 - it seems that using cash as another asset (can be simulated as **BUSDUSDT** for example) gives much more meaningful weight distributions
 
