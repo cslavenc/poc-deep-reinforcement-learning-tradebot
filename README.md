@@ -100,17 +100,39 @@ These dates have been used as start dates for training:
 - Underperforming: `datetime.datetime(2020,9,7,0,0,0)` shortly before the start of the bull market
 
 ### Online Training
-TODO: try tradestop of 3 days? or 4 even?
+**TODO**: try tradestop of 3 days? or 4 even?  
+Shorter weekly increments for retraining make the neural network adapt better to the current 
+situation. On the other hand, this might make the neural network too reactive or have too many tradestops 
+during bullish periods (1 week, 2 days) when fewer tradestop signals would have been okay. On the other hand, 
+retraining the neural network more frequently gives better range bound results and apparently, 
+they tend to capture intermediate bullish times during long extended bear markets after the obvious 
+downturn is over.
+
 - weeksIncrement: 6, 3, 4, what about 1 or 2 weeks?
+  - 6 weeks with a tradestop of 2 days performs significantly worse than 3 weeks with 2 days tradestop.
+  - 3 weeks with 2 days tradestop takes longer during the simulation, but it performs really well.
+    During the real-time scenario it should actually be quicker since preparing data takes less time.
   - whether training on weekly increments of 3 or 6 takes about the same time, since the number of train steps adapts accordingly, 
     but smaller weekly increments prepare data more often which seems to last a bit longer in total.
+  - An interesting find was the **1 week, 2 days** tradestop configuration. During the bull market, its 
+    tradestops were a bit too long at the initial phases of it, but it performed well during the bear market 
+    as it was basically rangebound and even better during intermediate runs by BTC about 1 year after 
+    the obvious onset of the bear market. In thus far, it outperformed the 3 weeks, 2 days during the 
+    **later stages of the bear market** (small intermediate bull markets), while the other configuration 
+    remained range bound during the same period.
 
-- tradestop duration: 1d vs 2d
+- **tradestop duration: 1d vs 2d**
+In general, longer tradestops encourage holding everything in cash longer. Often, a bad period lasts 
+for some time and shorter tradestops cannot capture the entire length properly and begin to trade too early, 
+even though the tradestops reactivate quite quickly again, some trades are executed during a downturn anyway 
+and lead to loss. Longer tradestops tend to avoid downturn periods better. Right now, a 2 days tradestop 
+seems to be outperforming the 1 day tradestop.
   - **1 day**: While a tradestop of 1 day works very well during bullish periods it seems to be underperform during clearly bearish periods. 
     This can be fixed manually by turning off the tradebot during clearly bearish periods.
-  - **2 days**: A tradestop for 2 days seems to perform better during the bear market as it goes 
+  - **2 days**: A tradestop for 2 days with weekly increments of 3 seems to perform better during the bear market as it goes 
     quite sideways and is thus more stable during a clear bear market. During a bull market, 
     it even outperformed the 1 day tradestop configuration.
+  - **3 days**:
 
 ## NOTES
 Preliminary results have shown that **ignoring to divide by the size of the individual rewards list**
