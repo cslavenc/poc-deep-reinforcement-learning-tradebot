@@ -100,6 +100,8 @@ These dates have been used as start dates for training:
 - Underperforming: `datetime.datetime(2020,9,7,0,0,0)` shortly before the start of the bull market
 
 ### Online Training
+
+#### Weekly increments
 Shorter weekly increments for retraining make the neural network adapt better to the current 
 situation. On the other hand, this might make the neural network too reactive or have too many tradestops 
 during bullish periods (1 week, 2 days) when fewer tradestop signals would have been okay. On the other hand, 
@@ -107,7 +109,6 @@ retraining the neural network more frequently gives better range bound results a
 they tend to capture intermediate bullish times during long extended bear markets after the obvious 
 downturn is over.
 
-- **weekly increments**  
   - 6 weeks with a tradestop of 2 days performs significantly worse than 3 weeks with 2 days tradestop.
   - 3 weeks with 2 days tradestop takes longer during the simulation, but it performs really well.
     During the real-time scenario it should actually be quicker since preparing data takes less time.
@@ -127,7 +128,7 @@ a suitable tradestop, they can still perform well (1 week, 2 days). Big weekly i
 and the neural network does not retrain often enough to adapt to a dynamic environment as seen when using 6 weeks as increment. 
 A moderate weekly increment (3 weeks) combined with a good tradestop duration (2 weeks) performed best.
 
-- **tradestop duration**  
+#### Tradestop duration
 In general, longer tradestops encourage holding everything in cash longer. Often, a bad period lasts 
 for some time and shorter tradestops cannot capture the entire length properly and begin to trade too early, 
 even though the tradestops reactivate quite quickly again, some trades are executed during a downturn anyway 
