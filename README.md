@@ -100,7 +100,6 @@ These dates have been used as start dates for training:
 - Underperforming: `datetime.datetime(2020,9,7,0,0,0)` shortly before the start of the bull market
 
 ### Online Training
-**TODO**: try tradestop of 3 days? or 4 even?  
 Shorter weekly increments for retraining make the neural network adapt better to the current 
 situation. On the other hand, this might make the neural network too reactive or have too many tradestops 
 during bullish periods (1 week, 2 days) when fewer tradestop signals would have been okay. On the other hand, 
