@@ -108,7 +108,7 @@ retraining the neural network more frequently gives better range bound results a
 they tend to capture intermediate bullish times during long extended bear markets after the obvious 
 downturn is over.
 
-- weeksIncrement: 6, 3, 4, what about 1 or 2 weeks?
+- **weekly increments**  
   - 6 weeks with a tradestop of 2 days performs significantly worse than 3 weeks with 2 days tradestop.
   - 3 weeks with 2 days tradestop takes longer during the simulation, but it performs really well.
     During the real-time scenario it should actually be quicker since preparing data takes less time.
@@ -119,9 +119,16 @@ downturn is over.
     as it was basically rangebound and even better during intermediate runs by BTC about 1 year after 
     the obvious onset of the bear market. In thus far, it outperformed the 3 weeks, 2 days during the 
     **later stages of the bear market** (small intermediate bull markets), while the other configuration 
-    remained range bound during the same period.
+    remained range bound during the same period.  
+    **Note**: For some reason, the weights get stuck in a basically even distribution at some point later on. 
+    More experimentation is necessary why this happened for the 1 week, 2 days configuration.
 
-- **tradestop duration: 1d vs 2d**
+In conclusion, smaller weekly increments tend to be a bit too reactive during the current market situation, but combined with 
+a suitable tradestop, they can still perform well (1 week, 2 days). Big weekly increments take too much data into account 
+and the neural network does not retrain often enough to adapt to a dynamic environment as seen when using 6 weeks as increment. 
+A moderate weekly increment (3 weeks) combined with a good tradestop duration (2 weeks) performed best.
+
+- **tradestop duration**  
 In general, longer tradestops encourage holding everything in cash longer. Often, a bad period lasts 
 for some time and shorter tradestops cannot capture the entire length properly and begin to trade too early, 
 even though the tradestops reactivate quite quickly again, some trades are executed during a downturn anyway 
@@ -132,7 +139,10 @@ seems to be outperforming the 1 day tradestop.
   - **2 days**: A tradestop for 2 days with weekly increments of 3 seems to perform better during the bear market as it goes 
     quite sideways and is thus more stable during a clear bear market. During a bull market, 
     it even outperformed the 1 day tradestop configuration.
-  - **3 days**:
+  - **3 days**: A 3 day tradestop works better on shorter weekly increments than on longer ones, but 
+    in the end, underperforms both. It can sometimes lead to too long tradestops during bull markets.
+
+The sweet spot configuration during based on the initial experiments seems to be **3 weeks with 2 days tradestop**.
 
 ## NOTES
 Preliminary results have shown that **ignoring to divide by the size of the individual rewards list**
@@ -205,3 +215,13 @@ that it was written in 2017 and at that time, there were no stablecoins to be us
 ### Starting weights w_0
 - optimal weights as starting weights during minibatches seem to work better than using weights, 
 where everything is in cash initially
+
+## Future ideas
+
+- Add the previous portfolio weights and the portfolio value as well, 
+  because sometimes, artificial tradestops actually change the weights and portfolio value. 
+  Maybe it helps with learning new behaviours
+
+- Are there labelled data you can use to improve learning?
+
+- Is a stronger penalty and reward helpful during learning in the reward function
