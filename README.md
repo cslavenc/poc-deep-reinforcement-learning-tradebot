@@ -122,6 +122,8 @@ downturn is over.
     remained range bound during the same period.  
     **Note**: For some reason, the weights get stuck in a basically even distribution at some point later on. 
     More experimentation is necessary why this happened for the 1 week, 2 days configuration.
+  - 4 weeks with 2 days tradestop underperformed, though its behaviour was somewhat similar to 
+    the 1 week 2 days configuration.
 
 In conclusion, smaller weekly increments tend to be a bit too reactive during the current market situation, but combined with 
 a suitable tradestop, they can still perform well (1 week, 2 days). Big weekly increments take too much data into account 
