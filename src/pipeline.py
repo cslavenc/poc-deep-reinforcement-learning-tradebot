@@ -260,20 +260,27 @@ def updateOnlineTrainData(data, testData):
     return data
 
 
+# TODO : how does the actual and calculated/predicted portfolio value diverge? can it be neglected?
 if __name__ == '__main__':
     # enforce CPU mode
     K.set_image_data_format('channels_last')
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
     
-    onlineEpochs = 10
     window = 50
-    minibatchSize = 32
     learning_rate = 0.00019
-    performOnlineTraining = True if sys.argv[1] == 'true' else False
+    # TODO test what the actual save string is
+    performOnlineTraining = True # if sys.argv[1] == 'true' else False
     
-    # TODO : update train data
-    # TODO : how? just read what java saves, or fetch yourself?
     # TODO : prepare data
+    now = datetime.datetime.now()
+    endRange = datetime.datetime(now.year, now.month, now.day, now.hour, now.minute, 0)
+    # TODO : it potentially needs to go back further in the past due to the long SMA
+    startRange = endRange - datetime.timedelta(days=27)
+    onlineStartRange = endRange - datetime.timedelta(weeks=3)
+    markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
+               'ADAUSDT_15m', 'MATICUSDT_15m']
+    
+    data, priceRelativeVectors = prepareData(startRange, endRange, markets, window)
     
     # create a new model
     portfolio = Portfolio()
@@ -286,12 +293,110 @@ if __name__ == '__main__':
                             metrics='accuracy')
     
     # load saved model
-    pretrainedModel = tf.keras.models.load_model("models/saved_model_test", 
-                                                 compile=False)
+    pretrainedModel = tf.keras.models.load_model('models/saved_model_3w_2d', 
+                                                  compile=False)
     portfolio.model.set_weights(pretrainedModel.get_weights())
-        
-    # TODO : analyze tradestops and predict on data
     
-    # TODO : online train on new train data and save new model
+    # simulate y_true
+    priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
+    optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
+    print('FINISHED PREPARATIONS...')
+    print('shape of data: %s\n shape of priceRelativeVectors: %s\n shape of weights: %s\n' %(data.shape, priceRelativeVectors.shape, optimalWeights.shape))
+    
+    # TODO : think about better variable names
+    # TODO : analyze tradestops and predict on data
+    # TODO : declare analysis specific and online training configs
+    # TODO : longSMA is 2500, so for tradestops, i need the portfolioValues of the last 2500 timesteps (approx 4 weeks)
+    onlineEpochs = 10
+    minibatchSize = 32
+    longSMA = 2500
+    shortSMA = 100
+    # TODO : how/where to keep track of the tradestop duration?
+    tradestopDuration = 4*24*2  # there are 4*24 15 mins per day
+    last3Weeks = 4*24*7*3
+    lookbackDownside = 200
+    cutoffDrop = -0.08
+    allCashWeights = np.array([1.] + [0. for _ in range(len(markets)-1)])
+    
+    testData = data
+    optimalTestWeights = optimalWeights
+    testPriceRelativeVectors = priceRelativeVectors
+        
+    # predict on latest datapoint
+    currentTestData = testData[-1:]
+    currentOptimalTestWeights = optimalTestWeights[-1:]
+    currentTestPriceRelativeVectors = testPriceRelativeVectors[-1:]
+    currentPortfolioWeights = portfolio.model.predict([currentTestData, 
+                                                       currentOptimalTestWeights])
+    currentPortfolioWeights = np.asarray(currentPortfolioWeights)
+    print('my predicted portfolio weights shape: %s' %str(currentPortfolioWeights.shape))
+    print('my predicted portfolio weights[-1]: %s' %str(np.round(currentPortfolioWeights[-1,:], 3)))
+    
+    # TODO : do i need to check the tradestop counter here and decrement by one each time pipeline.py is called?
+    tradestopCounter = int(np.loadtxt('tradestop.txt'))
+    tradestopCounter -= 1
+    np.savetxt('tradestop.txt', tradestopCounter)
+    
+    # TODO : do tradestops already occur here? how to handle for tradestop...
+    # TODO : the portfolio weights and values are loaded from another file and then updated
+    # calculate current portfolio value
+    portfolioWeights = np.loadtxt('weights.txt')
+    portfolioValues = np.loadtxt('values.txt')
+    
+    value = portfolio.calculateCurrentPortfolioValue(
+                portfolioValues[-1],
+                currentTestPriceRelativeVectors,
+                portfolioWeights[-1]
+            )
+    
+    # update portfolio weights and values
+    portfolioValues = np.append(portfolioValues, value)
+    portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
+    
+    if len(portfolioValues) > longSMA:
+        print('PREPARING ANALYSIS FOR CURRENT DOWNSIDE...')
+        portfolioValuesDF = pd.DataFrame(data={'value': portfolioValues})
+        portfolioValuesSMA = ta.sma(portfolioValuesDF['value'], length=longSMA)
+        
+        # the newest portfolio value should be smaller than the latest SMA value
+        if value <= portfolioValuesSMA.iloc[-1]:
+            portfolioGrowth = np.diff(ta.sma(pd.DataFrame(data={'value': portfolioValues})['value'],
+                                             length=shortSMA))
+            growthInterval = portfolioGrowth[-lookbackDownside:]
+            tradestopSignals = analyzeCurrentDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
+                                                      cutoffDrop=cutoffDrop,
+                                                      lookback=lookbackDownside)
+            print('NUMBER OF TRADESTOPS FOUND: ' + str(len(tradestopSignals)))
+            print('Tradestop signal details: ' + str(tradestopSignals))
+            
+            # activate safety mechanism if necessary
+            if len(tradestopSignals) > 0:
+                # set weights to all cash for some time to simulate holding cash
+                # TODO : portfolioValuesSMA.iloc[-1] is same as portfolioValuesSMA[-1]? -1 is out of index
+                if (portfolioWeights[-1][0] != 1.) and (portfolioValues[-1] <= portfolioValuesSMA.iloc[-1]):
+                    # TODO : "fix" portfolio weights to force all cash here?
+                    # TODO : portfolio weights need to be saved after this big if-stmt?...
+                    # TODO : only last entry, idx=-1 needs to be fixed?
+                    portfolioWeights[-1] = allCashWeights
+                    # TODO : how to handle tradestop now?
+                    # TODO : tradestop has to be told to java tradebot
+                    # TODO : is "true" enough or is a counter better? counter helps to keep the stop too...
+                    # tradestopCounter = tradestopDuration
+                    np.savetxt('tradestop.txt', tradestopDuration)
+    
+    # save portfolio weights and values
+    np.savetxt('weights.txt', portfolioWeights)
+    np.savetxt('values.txt', portfolioValues)
+    
+    
     if performOnlineTraining:
-        print("TODO : implementation")
+        print('PERFORMING **ONLINE** TRAINING...')
+        onlineTrainData = data[-last3Weeks:]
+        onlinePriceRelativeVectors = priceRelativeVectors[-last3Weeks:]
+        onlineOptimalWeights = optimalWeights[-last3Weeks:]
+        
+        # perform online training
+        portfolio.model.train(onlineTrainData, onlineOptimalWeights, onlinePriceRelativeVectors,
+                              minibatchSize, onlineEpochs)
+        # save trained model
+        portfolio.model.save("models/saved_model_test")
