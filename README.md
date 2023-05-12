@@ -72,6 +72,17 @@ The second approach has been preferred as it is much faster on CPU alone.
 - `deep_rl_eiie_cnn_with_weights_online_training_discrete.py` performs online training on every single new datapoint, 
 which leads to a massively bigger training time. Keep in mind that this POC is without safety mechanisms.  
 
+## pipeline.py used by Java
+`pipeline.py` is called by the java tradebot. Currently, the java tradebot only takes care of the trade logic with binance 
+and predicts the weights separately for portfolio rebalancing. `pipeline.py` is responsible for identifying tradestop signals 
+and performing the actual online training periodically (e.g. every 3 weeks) if signalled by the java tradebot.  
+In the context of its predecessors, it is basically a discrete step during the while-loops for tradestop analysis and online training 
+that take place in all previous variations of the neural network. Thus, `pipeline.py` is ideally a bit simpler to understand 
+as it is executed on every new datapoint discretely (e.g. the prediction on new incoming data is only necessary 
+for the most recent data point as opposed to a larger window/batch that is predicted on in the experiments).  
+On the other hand, the previously calculated portfolio values have to be saved and loaded in a separate file. 
+In the future, the tradestop analysis part will be deferred to Java, such that `pipeline.py` is only used for online training.
+
 ## GET STARTED
 ### INSTALLATION
 - tensorflow=2.9.1
