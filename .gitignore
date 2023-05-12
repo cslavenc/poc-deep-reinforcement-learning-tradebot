@@ -1,5 +1,7 @@
 # custom
 .idea
+.vscode
+template.py
 
 # ignore saved models
 models/*
