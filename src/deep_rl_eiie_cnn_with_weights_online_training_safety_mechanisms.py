@@ -344,7 +344,7 @@ if __name__ == '__main__':
             currentPortfolioWeights = portfolio.model.predict([currentTestData, 
                                                                currentOptimalTestWeights])
             
-            # tradestop should not continue past the very last datapoint (only relevant at the end)
+            # tradestop should not continue past the very last datapoint (only relevant during the very last step)
             if tradestopCounter > currentPortfolioWeights.shape[0]:
                 tradestopCounter = currentPortfolioWeights.shape[0]
             
