@@ -54,7 +54,7 @@ if __name__ == '__main__':
     # simply use max, binance will return the proper number of values based on startTime and endTime
     limit = '1000'
     
-    for _ in range(12):
+    for _ in range(1):
         for timeframe in timeframes:
             print('Begin timeframe: ' + timeframe)
             filenames = getFilenamesInDirectory(timeframe, 'datasets')
