@@ -299,8 +299,6 @@ if __name__ == '__main__':
     # simulate y_true
     priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
-    print('FINISHED PREPARATIONS...')
-    print('shape of data: %s\n shape of priceRelativeVectors: %s\n shape of weights: %s\n' %(data.shape, priceRelativeVectors.shape, optimalWeights.shape))
     
     # TODO : think about better variable names
     onlineEpochs = 10
@@ -325,8 +323,6 @@ if __name__ == '__main__':
     currentPortfolioWeights = portfolio.model.predict([currentTestData, 
                                                        currentOptimalTestWeights])
     currentPortfolioWeights = np.asarray(currentPortfolioWeights)
-    print('my predicted portfolio weights shape: %s' %str(currentPortfolioWeights.shape))
-    print('my predicted portfolio weights[-1]: %s' %str(np.round(currentPortfolioWeights[-1,:], 3)))
     
     # decrement tradestop counter (enables trading if tradestopCounter=0)
     tradestopCounter = int(np.loadtxt('tradestop.txt'))
@@ -348,7 +344,6 @@ if __name__ == '__main__':
     portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
     
     if len(portfolioValues) > longSMA:
-        print('PREPARING ANALYSIS FOR CURRENT DOWNSIDE...')
         portfolioValuesDF = pd.DataFrame(data={'value': portfolioValues})
         portfolioValuesSMA = ta.sma(portfolioValuesDF['value'], length=longSMA)
         
@@ -360,8 +355,6 @@ if __name__ == '__main__':
             tradestopSignals = analyzeCurrentDownside(pd.DataFrame(data={'growth': growthInterval})['growth'],
                                                       cutoffDrop=cutoffDrop,
                                                       lookback=lookbackDownside)
-            print('NUMBER OF TRADESTOPS FOUND: ' + str(len(tradestopSignals)))
-            print('Tradestop signal details: ' + str(tradestopSignals))
             
             # activate safety mechanism if necessary
             if len(tradestopSignals) > 0:
@@ -375,7 +368,6 @@ if __name__ == '__main__':
     np.savetxt('values.txt', portfolioValues)
     
     if performOnlineTraining:
-        print('PERFORMING **ONLINE** TRAINING...')
         onlineTrainData = data[-last3Weeks:]
         onlinePriceRelativeVectors = priceRelativeVectors[-last3Weeks:]
         onlineOptimalWeights = optimalWeights[-last3Weeks:]
