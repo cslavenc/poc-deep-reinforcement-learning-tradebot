@@ -6,6 +6,7 @@ Created on Thu Jul  7 11:59:42 2022
 """
 
 import os
+import pathlib
 import datetime
 import numpy as np
 import pandas as pd
@@ -73,6 +74,7 @@ def isGpuAvailable():
 def getFilenamesInDirectory(contains, targetDirectory):
     # get list with all datasets in directory
     # define paths
+    os.chdir(pathlib.Path(__file__).parent.parent)
     base = os.getcwd()
     dataPath = os.path.join(base, targetDirectory)
     
