@@ -5,6 +5,10 @@ Created on Mon Jun 20 12:04:06 2022
 @author: slaven
 """
 
+# os, pathlib used to set the current working directory in a general way
+import os
+import pathlib
+
 import time
 import datetime
 import requests
@@ -45,16 +49,18 @@ def updateMarket(market, filename):
     
 
 if __name__ == '__main__':
+    os.chdir(pathlib.Path(__file__).parent.parent)
     timeframes = ['15m']
-    # simply use max, binance will return the proper number of values based on startTime and endtTime
+    # simply use max, binance will return the proper number of values based on startTime and endTime
     limit = '1000'
     
-    for timeframe in timeframes:
-        print('Begin timeframe: ' + timeframe)
-        filenames = getFilenamesInDirectory(timeframe, 'datasets')
-        
-        for filename in filenames:
-            print('Updating for {}'.format(filename))
-            market = filename.split('_')[0]
-            rawData = pd.read_csv('datasets/'+filename)
-            rawData = updateMarket(market, filename)
+    for _ in range(12):
+        for timeframe in timeframes:
+            print('Begin timeframe: ' + timeframe)
+            filenames = getFilenamesInDirectory(timeframe, 'datasets')
+            
+            for filename in filenames:
+                print('Updating for {}'.format(filename))
+                market = filename.split('_')[0]
+                rawData = pd.read_csv('datasets/'+filename)
+                rawData = updateMarket(market, filename)
