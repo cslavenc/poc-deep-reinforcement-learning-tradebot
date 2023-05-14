@@ -6,6 +6,7 @@ Created on Fri Apr 28 13:37:20 2023
 """
 
 import os
+import sys
 import datetime
 import numpy as np
 import pandas as pd
@@ -259,6 +260,10 @@ def updateOnlineTrainData(data, testData):
     return data
 
 
+def findClosestQuarterlyMinute(mins):
+    multiple = mins//15
+    return 15 * multiple
+
 # TODO : how does the actual and calculated/predicted portfolio value diverge? can it be neglected?
 if __name__ == '__main__':
     # enforce CPU mode
@@ -267,15 +272,14 @@ if __name__ == '__main__':
     
     window = 50
     learning_rate = 0.00019
-    # TODO test what the actual save string is
-    performOnlineTraining = True # if sys.argv[1] == 'true' else False
+    performOnlineTraining = True if sys.argv[1] == 'true' else False
     
-    now = datetime.datetime.now()
-    # TODO : find endRange more generally, because it fails due to GMT and now.minute might not be 15 or so...
-    endRange = datetime.datetime(now.year, now.month, now.day, 11, 0, 0)
+    now = datetime.datetime.utcnow()
+    endRange = datetime.datetime(now.year, now.month, now.day, now.hour, 
+                                 findClosestQuarterlyMinute(now.minute), 0)
+    # longSMA has close to a month, so choose a large enought startRange
     startRange = endRange - datetime.timedelta(days=27)
-    # TODO : is this one still used? simply delete?
-    onlineStartRange = endRange - datetime.timedelta(weeks=3)
+    
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
     
@@ -300,28 +304,19 @@ if __name__ == '__main__':
     priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
     
-    # TODO : think about better variable names
     onlineEpochs = 10
     minibatchSize = 32
     longSMA = 2500
     shortSMA = 100
     tradestopDuration = 4*24*2  # there are 4*24 15 mins per day
-    last3Weeks = 4*24*7*3
+    last3Weeks = 4*24*7*3       # number of 15mins during n weeks
     lookbackDownside = 200
     cutoffDrop = -0.08
     allCashWeights = np.array([1.] + [0. for _ in range(len(markets)-1)])
     
-    testData = data
-    optimalTestWeights = optimalWeights
-    testPriceRelativeVectors = priceRelativeVectors
-    
-    # TODO : remove redundant variables
     # predict on latest datapoint
-    currentTestData = testData[-1:]
-    currentOptimalTestWeights = optimalTestWeights[-1:]
-    currentTestPriceRelativeVectors = testPriceRelativeVectors[-1:]
-    currentPortfolioWeights = portfolio.model.predict([currentTestData, 
-                                                       currentOptimalTestWeights])
+    currentPortfolioWeights = portfolio.model.predict([data[-1:], 
+                                                       optimalWeights[-1:]])
     currentPortfolioWeights = np.asarray(currentPortfolioWeights)
     
     # decrement tradestop counter (enables trading if tradestopCounter=0)
@@ -335,7 +330,7 @@ if __name__ == '__main__':
     
     value = portfolio.calculateCurrentPortfolioValue(
                 portfolioValues[-1],
-                currentTestPriceRelativeVectors,
+                priceRelativeVectors[-1:],
                 portfolioWeights[-1]
             )
     
