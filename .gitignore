@@ -8,6 +8,7 @@ template.py
 models/*
 saved*
 !models/.empty
+!models/trained*
 
 # ignore datasets
 datasets/*
