@@ -361,8 +361,8 @@ if __name__ == '__main__':
                     np.savetxt('tradestop.txt', [tradestopDuration], fmt='%i')
     
     # save portfolio weights and values
-    np.savetxt('weights.txt', np.round(portfolioWeights, 3))
-    np.savetxt('values.txt', portfolioValues)
+    np.savetxt('weights.txt', np.round(portfolioWeights, 3), fmt='%.3f')
+    np.savetxt('values.txt', portfolioValues, fmt='%.5f')
     
     if performOnlineTraining:
         onlineTrainData = data[-last3Weeks:]
