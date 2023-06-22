@@ -322,6 +322,7 @@ if __name__ == '__main__':
     # decrement tradestop counter (enables trading if tradestopCounter=0)
     tradestopCounter = int(np.loadtxt('tradestop.txt'))
     if tradestopCounter > 0:
+        currentPortfolioWeights[0] = allCashWeights
         tradestopCounter -= 1
         np.savetxt('tradestop.txt', [tradestopCounter])
     
