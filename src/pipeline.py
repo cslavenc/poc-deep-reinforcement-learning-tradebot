@@ -324,7 +324,7 @@ if __name__ == '__main__':
     if tradestopCounter > 0:
         currentPortfolioWeights[0] = allCashWeights
         tradestopCounter -= 1
-        np.savetxt('tradestop.txt', [tradestopCounter])
+        np.savetxt('tradestop.txt', [tradestopCounter], fmt='%i')
     
     # calculate current portfolio value
     portfolioWeights = np.loadtxt('weights.txt')
@@ -358,7 +358,7 @@ if __name__ == '__main__':
                 # set weights to all cash for some time to simulate holding cash
                 if (portfolioWeights[-1][0] != 1.) and (portfolioValues[-1] <= portfolioValuesSMA.iloc[-1]):
                     portfolioWeights[-1] = allCashWeights
-                    np.savetxt('tradestop.txt', [tradestopDuration])
+                    np.savetxt('tradestop.txt', [tradestopDuration], fmt='%i')
     
     # save portfolio weights and values
     np.savetxt('weights.txt', np.round(portfolioWeights, 3))
