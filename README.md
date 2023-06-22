@@ -83,6 +83,15 @@ for the most recent data point as opposed to a larger window/batch that is predi
 On the other hand, the previously calculated portfolio values have to be saved and loaded in a separate file. 
 In the future, the tradestop analysis part will be deferred to Java, such that `pipeline.py` is only used for online training.
 
+## TODO
+
+- when checking if tradestop is bigger than 0 for the first time, it will always be false, because 
+before that, any tradestop from the previous period will be used up. Then, it checks if longSMA activates a potential tradestop.
+If it a new tradestop is activated again, then it is good. But this also means, that at least once, 
+an unfavourable trade will be executed and potentially result in losses.  
+It should be checked if a peek is possible to avoid doing that one unfavourable trade. 
+Thus, that one single trade between two tradestops is avoided.
+
 ## GET STARTED
 ### INSTALLATION
 - tensorflow=2.9.1
