@@ -277,7 +277,7 @@ if __name__ == '__main__':
     now = datetime.datetime.utcnow()
     endRange = datetime.datetime(now.year, now.month, now.day, now.hour, 
                                  findClosestQuarterlyMinute(now.minute), 0)
-    # longSMA has close to a month, so choose a large enought startRange
+    # longSMA has close to a month, so choose a large enough startRange
     startRange = endRange - datetime.timedelta(days=27)
     
     markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
@@ -321,8 +321,9 @@ if __name__ == '__main__':
     
     # decrement tradestop counter (enables trading if tradestopCounter=0)
     tradestopCounter = int(np.loadtxt('tradestop.txt'))
-    tradestopCounter -= 1
-    np.savetxt('tradestop.txt', [tradestopCounter])
+    if tradestopCounter > 0:
+        tradestopCounter -= 1
+        np.savetxt('tradestop.txt', [tradestopCounter])
     
     # calculate current portfolio value
     portfolioWeights = np.loadtxt('weights.txt')
