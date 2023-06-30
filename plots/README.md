@@ -17,7 +17,7 @@ can be achieved with 3 weeks as the online retraining period as well.
 
 The most promising network seems to be one obtained by random:
 
-![best bull and bear market performance](best_bull_and_bear_market.png)
+![best bull and bear market performance](best_bull_and_bear_3w_2d.png)
 
 Keep in mind that trading fees were ignored here. On the other, these fees could potentially 
 be offset with staking and savings rewards.
