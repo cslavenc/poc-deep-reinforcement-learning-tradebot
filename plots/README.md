@@ -12,12 +12,12 @@ lead to good results as well, although it retrains too frequently during bull ma
 it was somewhat better during a bear market period. On the other hand, a similar performance 
 can be achieved with 3 weeks as the online retraining period as well.
 
-[1 week, 2 days](growth_1w_2d.png)
-[3 week, 2 days with a similar performance](great_bear_overall_3w_2d_seed_475624730875.png)
+![1 week, 2 days](growth_1w_2d.png)
+![3 week, 2 days with a similar performance](great_bear_overall_3w_2d_seed_475624730875.png)
 
 The most promising network seems to be one obtained by random:
 
-[best bull and bear market performance](best_bull_and_bear_market.png)
+![best bull and bear market performance](best_bull_and_bear_market.png)
 
 Keep in mind that trading fees were ignored here. On the other, these fees could potentially 
 be offset with staking and savings rewards.
