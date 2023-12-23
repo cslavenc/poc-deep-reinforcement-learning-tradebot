@@ -266,6 +266,7 @@ if __name__ == '__main__':
     starttime = time.time()
     K.set_image_data_format('channels_last')
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
+    tf.random.set_seed(1661378400000)
     
     # define a few neural network specific variables
     epochs = 300
@@ -303,9 +304,9 @@ if __name__ == '__main__':
     onlineOptimalWeights = optimalWeights
     onlineEpochs = 10
     
-    weeksIncrement = 4
+    weeksIncrement = 3
     startRangeTest = endRange
-    endRangeTest = datetime.datetime(2023,4,28,0,0,0)
+    endRangeTest = datetime.datetime(2023,6,28,0,0,0)
     currentLowerRangeTest = startRangeTest
     currentUpperRangeTest = startRangeTest + datetime.timedelta(weeks=weeksIncrement)
     
@@ -411,6 +412,7 @@ if __name__ == '__main__':
             # perform online training
             portfolio.model.train(onlineTrainData, onlineOptimalWeights, onlinePriceRelativeVectors,
                                   minibatchSize, onlineEpochs)
+            print("Trained till: " + str(currentLowerRangeTest))
         
         # update datetime interval
         currentLowerRangeTest += datetime.timedelta(weeks=weeksIncrement)
