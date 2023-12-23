@@ -113,7 +113,7 @@ Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU
 
 ## Training
 The network is sensitive to the train period. It should be chosen carefully and with empirical testing. 
-Based on initial testing, it seems to be more favourable to chose a train period during a bull market.
+Based on initial testing, it seems to be more favourable to choose a train period during a bull market.
 These dates have been used as start dates for training:
 
 - Good: `datetime.datetime(2020,12,24,0,0,0)` before the distribution phase (bull market)
