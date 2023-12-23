@@ -175,7 +175,7 @@ leads to basically the same results, but upside potential seems to be higher
   - **high liquidity**: an asset must possess a high daily trade volume
   - **instant selling and buying**: thanks to high liquidity, an asset can be sold or bought immediately
   - **zero slippage**: the asset is definitely sold/bought at the chosen **spot** price
-  - **zero market impact**: buying or selling an asset should not influence the market at all
+  - **zero market impact**: buying or selling an asset should not influence the market at all.
   Therefore, an initial candidate list has been identified by sorting assets on binance by descending volume. 
   The final list has been chosen through testing.
 
