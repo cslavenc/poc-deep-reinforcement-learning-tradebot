@@ -106,7 +106,7 @@ with cudatoolkit=11.2, cudnn=8.1.0 and cupy-cuda11x
 ### RUNNING THE SIMULATION
 - First, run `generate_data_for_trading_pair.py` and make sure to have the folder `src/datasets`. Feel free to delete the placeholder file `.empty`.  
 This creates the csv files that are used for static backtesting throughout this project.
-- then, run a neural network file of your choice for analysis. Note that depending which neural network you are running, they might implement only
+- then, run a neural network file of your choice for analysis. Note that depending on which neural network you are running, they might implement only
 some aspects of the actual neural network in the paper as well as evaluate the data differently.  
 
 Make sure, you are using the CPU mode on laptop. Optionally, you can use the GPU mode where the support has been implemented.  
@@ -156,7 +156,7 @@ for some time and shorter tradestops cannot capture the entire length properly a
 even though the tradestops reactivate quite quickly again, some trades are executed during a downturn anyway 
 and lead to loss. Longer tradestops tend to avoid downturn periods better. Right now, a 2 days tradestop 
 seems to be outperforming the 1 day tradestop.
-  - **1 day**: While a tradestop of 1 day works very well during bullish periods it seems to be underperform during clearly bearish periods. 
+  - **1 day**: While a tradestop of 1 day works very well during bullish periods it seems to be underperforming during clearly bearish periods. 
     This can be fixed manually by turning off the tradebot during clearly bearish periods.
   - **2 days**: A tradestop for 2 days with weekly increments of 3 seems to perform better during the bear market as it goes 
     quite sideways and is thus more stable during a clear bear market. During a bull market, 
@@ -200,7 +200,7 @@ very unfavourable initial values can lead to a broken prediction. Retraining fro
 
 ### CuPy vs numpy
 - initial trials showed a decline in performance when generating the dataset (X_tensor) when using `cupy` probably due to the GPU overhead.
-- `cupy` is essentially the GPU version of `numpy`. It still has some pecularities about it though...
+- `cupy` is essentially the GPU version of `numpy`. It still has some peculiarities about it though...
 - normally, `import cupy as np` is preferred as the API is basically the same as numpy.
 - `cupy` requires cupy arrays instead of lists though. Thus: if myList is a python list, 
 numpy usually has no trouble with it. On the other hand, cupy requires a conversion 
@@ -228,7 +228,7 @@ the operations are not recorded anymore. Only those operations are available tha
 within the same loop/GradientTape.
 
 ### Cash Bias
-The paper suggests to use a separat cash layer as cash bias. This design decision was likely due to the fact 
+The paper suggests to use a separate cash layer as cash bias. This design decision was likely due to the fact 
 that it was written in 2017 and at that time, there were no stablecoins to be used as cash.
 
 - concatenating the cash bias as proposed in the paper did not yield good results in preliminary trials.
