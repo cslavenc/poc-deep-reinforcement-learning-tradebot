@@ -14,7 +14,8 @@ import datetime
 import requests
 import pandas as pd
 
-from utils import getFilenamesInDirectory
+# file has same name as directory which leads to import confusions
+from utils.utils import getFilenamesInDirectory
 from binance_utils import structureData
 
 
@@ -25,7 +26,7 @@ def timestamp(dt):
 
 
 # helper function to update a market
-def updateMarket(market, filename):
+def updateMarket(market, filename, timeframe, limit):
     rawData = pd.read_csv('datasets/'+filename)
     
     lastDatetime = datetime.datetime.strptime(rawData['date'].iloc[-1],
@@ -46,6 +47,18 @@ def updateMarket(market, filename):
     rawData.to_csv('datasets/'+filename, index=False)
     
     return rawData
+
+
+def updateDatasets(timeframes, limit):
+    for timeframe in timeframes:
+        print('Begin timeframe: ' + timeframe)
+        filenames = getFilenamesInDirectory(timeframe, 'datasets')
+        
+        for filename in filenames:
+            print('Updating for {}'.format(filename))
+            market = filename.split('_')[0]
+            # rawData = pd.read_csv('datasets/'+filename)
+            updateMarket(market, filename, timeframe, limit)
     
 
 if __name__ == '__main__':
@@ -55,12 +68,4 @@ if __name__ == '__main__':
     limit = '1000'
     
     for _ in range(1):
-        for timeframe in timeframes:
-            print('Begin timeframe: ' + timeframe)
-            filenames = getFilenamesInDirectory(timeframe, 'datasets')
-            
-            for filename in filenames:
-                print('Updating for {}'.format(filename))
-                market = filename.split('_')[0]
-                rawData = pd.read_csv('datasets/'+filename)
-                rawData = updateMarket(market, filename)
+        updateDatasets(timeframes, limit)
