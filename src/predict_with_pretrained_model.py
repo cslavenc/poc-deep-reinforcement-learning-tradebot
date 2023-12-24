@@ -14,10 +14,13 @@ import tensorflow.keras.backend as K
 
 from pipeline import Portfolio, prepareData, findClosestQuarterlyMinute,\
     sanitizeCashValues
+from utils.update_datasets import updateDatasets
 
 # only for simple predictions without any downside analysis
-# if a tradestop was expected, run pipeline.py with the appropriate start and end dates
 if __name__ == '__main__':
+    # update datasets
+    updateDatasets(timeframes=['15m'], limit='1000')
+    
     # force CPU usage
     K.set_image_data_format('channels_last')
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # required to fully enforce CPU usage
@@ -25,14 +28,14 @@ if __name__ == '__main__':
     window = 50
     learning_rate = 0.00019
     currentActualBalanceInUSDT = 10000
-    sinceLastPrediction = 10  # can be anything, such as days, minutes, hours etc.
+    portfolioValues = [1.*currentActualBalanceInUSDT]
     
     now = datetime.datetime.utcnow()
     endRange = datetime.datetime(now.year, now.month, now.day, now.hour, 
                                  findClosestQuarterlyMinute(now.minute), 0)
-    startRange = endRange - datetime.timedelta(days=sinceLastPrediction)
+    startRange = datetime.datetime(2023, 6, 26, 0, 0, 0)
     
-    markets = ['BUSDUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
+    markets = ['USDCUSDT_15m', 'BTCUSDT_15m', 'ETHUSDT_15m', 'BNBUSDT_15m',
                'ADAUSDT_15m', 'MATICUSDT_15m']
     
     # datasets MUST be up-to-date!
@@ -49,37 +52,27 @@ if __name__ == '__main__':
                             metrics='accuracy')
 
     # load pretrained model
-    pretrainedModel = tf.keras.models.load_model('models/MODEL_NAME', 
+    pretrainedModel = tf.keras.models.load_model('models/prod_model', 
                                                   compile=False)
     portfolio.model.set_weights(pretrainedModel.get_weights())
     
     # predict
     priceRelativeVectors = sanitizeCashValues(priceRelativeVectors)
     optimalWeights = portfolio.generateOptimalWeights(priceRelativeVectors)
-    currentPortfolioWeights = portfolio.model.predict([data[-1:], 
-                                                       optimalWeights[-1:]])
+    currentPortfolioWeights = portfolio.model.predict([data, optimalWeights])
     currentPortfolioWeights = np.asarray(currentPortfolioWeights)
     
-    # calculate current portfolio value
-    portfolioWeights = np.loadtxt('weights.txt')
-    portfolioValues = np.loadtxt('values.txt')
-    
-    # TODO : for loop to update add all the new values (do it efficiently somehow)
-    value = portfolio.calculateCurrentPortfolioValue(
-                portfolioValues[-1],
-                priceRelativeVectors[-1:],
-                portfolioWeights[-1]
-            )
-    
-    # update portfolio weights and values
-    portfolioValues = np.append(portfolioValues, value)
-    portfolioWeights = np.append(portfolioWeights, currentPortfolioWeights, axis=0)
+    for i in range(1, currentPortfolioWeights.shape[0]):
+        value = portfolio.calculateCurrentPortfolioValue(
+                    portfolioValues[i-1],
+                    priceRelativeVectors[i],
+                    currentPortfolioWeights[i-1])
+        portfolioValues.append(value)
     
     # scale all data points to be inline with the actual balance
     scale = portfolioValues[-1] / currentActualBalanceInUSDT
     portfolioValues = portfolioValues / scale
     
     # save portfolio weights and values
-    # DONT FORGET TO FIX values.txt
-    np.savetxt('weights.txt', np.round(portfolioWeights, 3), fmt='%.3f')
+    np.savetxt('weights.txt', np.round(currentPortfolioWeights, 3), fmt='%.3f')
     np.savetxt('values.txt', portfolioValues, fmt='%.5f')
