@@ -14,12 +14,9 @@ import tensorflow.keras.backend as K
 
 from pipeline import Portfolio, prepareData, findClosestQuarterlyMinute,\
     sanitizeCashValues
-from utils.update_datasets import updateDatasets
 
 # only for simple predictions without any downside analysis
 if __name__ == '__main__':
-    # update datasets
-    updateDatasets(timeframes=['15m'], limit='1000')
     
     # force CPU usage
     K.set_image_data_format('channels_last')
