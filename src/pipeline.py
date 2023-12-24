@@ -296,7 +296,7 @@ if __name__ == '__main__':
                             metrics='accuracy')
     
     # load saved model
-    pretrainedModel = tf.keras.models.load_model('models/saved_model_3w_2d', 
+    pretrainedModel = tf.keras.models.load_model('models/prod_model', 
                                                   compile=False)
     portfolio.model.set_weights(pretrainedModel.get_weights())
     
