@@ -5,8 +5,7 @@ template.py
 *.txt
 
 # ignore saved models
-models/*
-saved*
+models
 !models/.empty
 !models/trained*
 
