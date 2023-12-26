@@ -15,7 +15,7 @@ import requests
 import pandas as pd
 
 # file has same name as directory which leads to import confusions
-from utils.utils import getFilenamesInDirectory
+from utils import getFilenamesInDirectory
 from binance_utils import structureData
 
 
@@ -26,6 +26,7 @@ def timestamp(dt):
 
 
 # helper function to update a market
+# TODO : for some reason, on linux, it uses utc when sending the request
 def updateMarket(market, filename, timeframe, limit):
     rawData = pd.read_csv('datasets/'+filename)
     
